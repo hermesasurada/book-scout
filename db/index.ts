@@ -20,6 +20,7 @@ export async function getDb() {
       publisher TEXT NOT NULL DEFAULT '',
       cover TEXT NOT NULL DEFAULT '',
       aladin_link TEXT NOT NULL DEFAULT '',
+      pub_date TEXT NOT NULL DEFAULT '',
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`),
     env.DB.prepare("CREATE UNIQUE INDEX IF NOT EXISTS books_isbn13_unique ON books (isbn13)"),
@@ -37,7 +38,21 @@ export async function getDb() {
       error TEXT NOT NULL DEFAULT ''
     )`),
     env.DB.prepare("CREATE INDEX IF NOT EXISTS checks_book_date_idx ON checks (book_id, checked_at)"),
-  ]).then(() => undefined);
+  ])
+    // Add columns introduced after the initial schema. SQLite has no
+    // "ADD COLUMN IF NOT EXISTS", so tolerate the "duplicate column" error on
+    // databases that already have it.
+    .then(() =>
+      env.DB.prepare("ALTER TABLE books ADD COLUMN pub_date TEXT NOT NULL DEFAULT ''")
+        .run()
+        .catch(() => undefined),
+    )
+    .then(() =>
+      env.DB.prepare("ALTER TABLE checks ADD COLUMN library_link TEXT NOT NULL DEFAULT ''")
+        .run()
+        .catch(() => undefined),
+    )
+    .then(() => undefined);
   await initialization;
 
   return drizzle(env.DB, { schema });

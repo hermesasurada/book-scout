@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { books, checks } from "../../../db/schema";
-import { checkAladinStore, checkBojeongLibrary } from "../../../lib/providers";
+import { checkAladinStore, checkBojeongLibrary, lookupAladinBook } from "../../../lib/providers";
 
 type RuntimeEnv = { ALADIN_TTB_KEY?: string; ALADIN_STORE_NAME?: string; DAILY_CHECK_TOKEN?: string };
 
@@ -18,17 +18,45 @@ export async function POST(request: Request) {
   if (runtime.DAILY_CHECK_TOKEN && supplied && supplied !== runtime.DAILY_CHECK_TOKEN) {
     return Response.json({ error: "점검 토큰이 올바르지 않습니다." }, { status: 401 });
   }
-  const payload = (await request.json().catch(() => ({}))) as { bookId?: number };
+  const payload = (await request.json().catch(() => ({}))) as { bookId?: number; coversOnly?: boolean };
   const db = await getDb();
   const targets = payload.bookId
     ? await db.select().from(books).where(eq(books.id, payload.bookId))
     : await db.select().from(books);
+
+  // Enrich a book row from Aladin metadata (cover, product link, pub date) when
+  // any of those are missing. Bulk-imported books arrive without them.
+  const enrich = async (book: typeof targets[number]) => {
+    if (book.cover && book.pubDate) return;
+    const info = await lookupAladinBook(book.isbn13, runtime.ALADIN_TTB_KEY);
+    if (!info) return;
+    await db
+      .update(books)
+      .set({
+        cover: book.cover || info.cover,
+        aladinLink: book.cover ? book.aladinLink : info.link || book.aladinLink,
+        pubDate: book.pubDate || info.pubDate,
+      })
+      .where(eq(books.id, book.id));
+  };
+
+  // Fast path: only backfill missing Aladin metadata, skip status checks.
+  if (payload.coversOnly) {
+    let filled = 0;
+    for (const book of targets) {
+      if (book.cover && book.pubDate) continue;
+      await enrich(book);
+      filled += 1;
+    }
+    return Response.json({ enriched: filled, scanned: targets.length });
+  }
 
   const results = [];
   for (const book of targets) {
     const [aladin, library] = await Promise.all([
       checkAladinStore(book, runtime.ALADIN_TTB_KEY, runtime.ALADIN_STORE_NAME || "서현점"),
       checkBojeongLibrary(book),
+      enrich(book),
     ]);
     const error = [aladin.error, library.error].filter(Boolean).join(" / ");
     const [saved] = await db
@@ -42,6 +70,7 @@ export async function POST(request: Request) {
         libraryStatus: library.status,
         libraryDueDate: library.dueDate,
         libraryLocation: library.location,
+        libraryLink: library.link,
         error,
       })
       .returning();

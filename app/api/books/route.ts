@@ -14,6 +14,7 @@ export async function GET() {
         publisher: books.publisher,
         cover: books.cover,
         aladinLink: books.aladinLink,
+        pubDate: books.pubDate,
         createdAt: books.createdAt,
         checkedAt: checks.checkedAt,
         aladinStatus: checks.aladinStatus,
@@ -23,6 +24,7 @@ export async function GET() {
         libraryStatus: checks.libraryStatus,
         libraryDueDate: checks.libraryDueDate,
         libraryLocation: checks.libraryLocation,
+        libraryLink: checks.libraryLink,
         checkError: checks.error,
       })
       .from(books)
@@ -48,6 +50,7 @@ export async function POST(request: Request) {
           publisher: String(item.publisher ?? "").trim(),
           cover: String(item.cover ?? ""),
           aladinLink: String(item.aladinLink ?? ""),
+          pubDate: String(item.pubDate ?? ""),
         }));
       const unique = [...new Map(valid.map((book) => [book.isbn13, book])).values()];
       const db = await getDb();
@@ -82,6 +85,7 @@ export async function POST(request: Request) {
         publisher: single.publisher?.trim() ?? "",
         cover: single.cover ?? "",
         aladinLink: single.aladinLink ?? "",
+        pubDate: single.pubDate ?? "",
       })
       .onConflictDoNothing({ target: books.isbn13 })
       .returning();

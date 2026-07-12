@@ -1,0 +1,1 @@
+ALTER TABLE `checks` ADD `library_link` text DEFAULT '' NOT NULL;

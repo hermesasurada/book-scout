@@ -1,0 +1,1 @@
+ALTER TABLE `books` ADD `pub_date` text DEFAULT '' NOT NULL;

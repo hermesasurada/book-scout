@@ -11,6 +11,7 @@ type Book = {
   publisher: string;
   cover: string;
   aladinLink: string;
+  pubDate?: string | null;
   checkedAt?: string | null;
   aladinStatus?: string | null;
   aladinStore?: string | null;
@@ -19,6 +20,7 @@ type Book = {
   libraryStatus?: string | null;
   libraryDueDate?: string | null;
   libraryLocation?: string | null;
+  libraryLink?: string | null;
   checkError?: string | null;
 };
 
@@ -64,6 +66,30 @@ function relativeTime(value?: string | null) {
   return `${Math.floor(minutes / 1440)}일 전`;
 }
 
+// Deep link to the Bojeong library results for this title (mirrors the query
+// the daily checker sends). Books without a checked availability have no
+// library detail page, so only the search results are linkable.
+function libraryUrl(title: string) {
+  const params = new URLSearchParams({
+    searchType: "SIMPLE",
+    searchCategory: "BOOK",
+    searchKey: "TITLE",
+    searchKeyword: title.replace(/\s*[-–—].*$/, "").trim(),
+    searchLibraryArr: "NU",
+  });
+  return `https://lib.yongin.go.kr/bojeong/menu/14328/program/30012/plusSearchResultList.do?${params}`;
+}
+
+const PAGE_SIZE = 20;
+
+type SortKey = "added" | "pubDesc" | "pubAsc";
+
+const sortLabels: Record<SortKey, string> = {
+  added: "추가한 순",
+  pubDesc: "출간일 최신순",
+  pubAsc: "출간일 오래된순",
+};
+
 export function BookScout() {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,7 +98,9 @@ export function BookScout() {
   const [results, setResults] = useState<SearchBook[]>([]);
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState("");
-  const [filter, setFilter] = useState<"all" | "found">("all");
+  const [filter, setFilter] = useState<"all" | "aladin" | "library">("all");
+  const [sort, setSort] = useState<SortKey>("added");
+  const [page, setPage] = useState(1);
   const [showSetup, setShowSetup] = useState(false);
 
   const loadBooks = useCallback(async () => {
@@ -102,9 +130,28 @@ export function BookScout() {
     [books],
   );
 
-  const visibleBooks = filter === "all"
-    ? books
-    : books.filter((book) => book.aladinStatus === "in_stock" || book.libraryStatus === "available");
+  const filteredBooks = useMemo(() => {
+    const matched = books.filter((book) => {
+      if (filter === "aladin") return book.aladinStatus === "in_stock";
+      if (filter === "library") return book.libraryStatus === "available";
+      return true;
+    });
+    if (sort === "added") return matched;
+    const sorted = [...matched].sort((a, b) => {
+      // Books without a known pub date sort to the bottom regardless of order.
+      const da = a.pubDate || "";
+      const db = b.pubDate || "";
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return sort === "pubDesc" ? db.localeCompare(da) : da.localeCompare(db);
+    });
+    return sorted;
+  }, [books, filter, sort]);
+
+  const pageCount = Math.max(1, Math.ceil(filteredBooks.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const visibleBooks = filteredBooks.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   async function search(event: FormEvent) {
     event.preventDefault();
@@ -194,8 +241,8 @@ export function BookScout() {
       <section className="hero" id="top">
         <div className="heroCopy">
           <p className="eyebrow">MY READING WATCHLIST</p>
-          <h1>기다리던 책을<br /><em>놓치지 않도록.</em></h1>
-          <p className="heroLead">알라딘 중고서점과 보정도서관을 매일 살펴보고,<br className="desktopOnly" /> 책을 만날 가장 좋은 순간을 알려드려요.</p>
+          <h1>기다리던 책을 <em>놓치지 않도록.</em></h1>
+          <p className="heroLead">알라딘 서현점과 보정도서관을 매일 살펴 책을 만날 순간을 알려드려요.</p>
         </div>
         <div className="summary" aria-label="관심도서 요약">
           <div><strong>{counts.total}</strong><span>관심도서</span></div>
@@ -247,46 +294,66 @@ export function BookScout() {
       <section className="booksSection" id="books" aria-labelledby="books-title">
         <div className="sectionHead">
           <div><span className="sectionNumber">02</span><h2 id="books-title">나의 관심도서</h2></div>
-          <div className="filters" role="group" aria-label="관심도서 필터">
-            <button className={filter === "all" ? "selected" : ""} onClick={() => setFilter("all")}>전체 {counts.total}</button>
-            <button className={filter === "found" ? "selected" : ""} onClick={() => setFilter("found")}>지금 만날 수 있는 책 {counts.aladin + counts.library}</button>
+          <div className="sectionControls">
+            <div className="filters" role="group" aria-label="관심도서 필터">
+              <button className={filter === "all" ? "selected" : ""} onClick={() => { setFilter("all"); setPage(1); }}>전체 {counts.total}</button>
+              <button className={filter === "aladin" ? "selected coral" : ""} onClick={() => { setFilter("aladin"); setPage(1); }}>서현점 재고 {counts.aladin}</button>
+              <button className={filter === "library" ? "selected good" : ""} onClick={() => { setFilter("library"); setPage(1); }}>보정 대출가능 {counts.library}</button>
+            </div>
+            <label className="sortSelect">
+              <span className="srOnly">정렬 기준</span>
+              <select value={sort} onChange={(event) => { setSort(event.target.value as SortKey); setPage(1); }}>
+                {(Object.keys(sortLabels) as SortKey[]).map((key) => (
+                  <option key={key} value={key}>{sortLabels[key]}</option>
+                ))}
+              </select>
+            </label>
           </div>
         </div>
 
         {loading ? (
           <div className="emptyState"><span className="loadingDot" />관심도서를 불러오는 중입니다.</div>
         ) : visibleBooks.length === 0 ? (
-          <div className="emptyState">
+          <div className="bookGrid"><div className="emptyState">
             <span className="emptyBook">＋</span>
-            <h3>{books.length ? "지금 바로 만날 수 있는 책은 없어요." : "첫 관심도서를 담아보세요."}</h3>
-            <p>{books.length ? "매일 확인해서 변화가 생기면 이곳에 표시합니다." : "위 검색창에서 도서명이나 ISBN으로 찾을 수 있습니다."}</p>
-          </div>
+            <h3>{!books.length ? "첫 관심도서를 담아보세요." : filter === "aladin" ? "서현점에 재고가 있는 책이 없어요." : filter === "library" ? "보정도서관에서 대출 가능한 책이 없어요." : "관심도서가 없습니다."}</h3>
+            <p>{!books.length ? "위 검색창에서 도서명이나 ISBN으로 찾을 수 있습니다." : "매일 확인해서 변화가 생기면 이곳에 표시합니다."}</p>
+          </div></div>
         ) : (
           <div className="bookGrid">
             {visibleBooks.map((book, index) => (
               <article className="bookCard" key={book.id}>
-                <div className="cardIndex">{String(index + 1).padStart(2, "0")}</div>
+                <div className="cardIndex">{String((currentPage - 1) * PAGE_SIZE + index + 1).padStart(2, "0")}</div>
                 <div className="bookCover">
                   {book.cover ? <img src={book.cover} alt={`${book.title} 표지`} /> : <span>BOOK</span>}
                 </div>
-                <div className="bookMeta">
-                  <small>ISBN {book.isbn13}</small>
-                  <h3>{book.title}</h3>
-                  <p>{book.author}</p>
-                  <span>{book.publisher}</span>
-                </div>
-                <div className="availability">
-                  <div className="sourceRow"><span className="sourceIcon aladin">A</span><div><small>{book.aladinStore || "알라딘 서현점"}</small><strong className={statusTone(book.aladinStatus)}>{aladinLabels[book.aladinStatus ?? ""] || "확인 전"}</strong>{book.aladinPrice ? <em>{book.aladinPrice.toLocaleString()}원부터</em> : null}</div></div>
-                  <div className="sourceRow"><span className="sourceIcon library">보</span><div><small>보정도서관</small><strong className={statusTone(book.libraryStatus)}>{libraryLabels[book.libraryStatus ?? ""] || "확인 전"}</strong>{book.libraryDueDate ? <em>{book.libraryDueDate} 반납 예정</em> : book.libraryLocation ? <em>{book.libraryLocation}</em> : null}</div></div>
-                </div>
-                <div className="cardActions">
-                  <span>{relativeTime(book.checkedAt)}</span>
-                  <button onClick={() => void runCheck(book.id)} disabled={checking !== null}>{checking === book.id ? "확인 중…" : "지금 확인"}</button>
-                  <button className="delete" onClick={() => void removeBook(book)} aria-label={`${book.title} 삭제`}>×</button>
+                <div className="bookMain">
+                  <div className="bookMeta">
+                    <small>ISBN {book.isbn13}</small>
+                    <h3>{book.title}</h3>
+                    <p>{book.author}{book.publisher ? ` · ${book.publisher}` : ""}{book.pubDate ? ` · ${book.pubDate.slice(0, 7)}` : ""}</p>
+                  </div>
+                  <div className="availability">
+                    <div className="sourceRow"><span className="sourceIcon aladin">A</span><div><small>{book.aladinStore || "알라딘 서현점"}</small>{book.aladinStatus === "in_stock" && (book.checkAladinLink || book.aladinLink) ? <a className={`statusLink ${statusTone(book.aladinStatus)}`} href={book.checkAladinLink || book.aladinLink} target="_blank" rel="noreferrer"><strong>{aladinLabels.in_stock} ↗</strong></a> : <strong className={statusTone(book.aladinStatus)}>{aladinLabels[book.aladinStatus ?? ""] || "확인 전"}</strong>}{book.aladinPrice ? <em>{book.aladinPrice.toLocaleString()}원부터</em> : null}</div></div>
+                    <div className="sourceRow"><span className="sourceIcon library">보</span><div><small>보정도서관</small>{book.libraryStatus === "available" ? <a className={`statusLink ${statusTone(book.libraryStatus)}`} href={book.libraryLink || libraryUrl(book.title)} target="_blank" rel="noreferrer"><strong>{libraryLabels.available} ↗</strong></a> : <strong className={statusTone(book.libraryStatus)}>{libraryLabels[book.libraryStatus ?? ""] || "확인 전"}</strong>}{book.libraryDueDate ? <em>{book.libraryDueDate} 반납</em> : book.libraryLocation ? <em>{book.libraryLocation}</em> : null}</div></div>
+                  </div>
+                  <div className="cardActions">
+                    <span>{relativeTime(book.checkedAt)}</span>
+                    <button onClick={() => void runCheck(book.id)} disabled={checking !== null}>{checking === book.id ? "확인 중…" : "지금 확인"}</button>
+                    <button className="delete" onClick={() => void removeBook(book)} aria-label={`${book.title} 삭제`}>×</button>
+                  </div>
                 </div>
               </article>
             ))}
           </div>
+        )}
+
+        {!loading && pageCount > 1 && (
+          <nav className="pager" aria-label="페이지 이동">
+            <button onClick={() => setPage(currentPage - 1)} disabled={currentPage <= 1} aria-label="이전 페이지">‹</button>
+            <span>{currentPage} / {pageCount}<em>· {filteredBooks.length}권</em></span>
+            <button onClick={() => setPage(currentPage + 1)} disabled={currentPage >= pageCount} aria-label="다음 페이지">›</button>
+          </nav>
         )}
       </section>
 

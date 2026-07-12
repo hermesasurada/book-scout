@@ -46,7 +46,14 @@ export type AladinDetail = {
 };
 
 export type LibraryCheck = {
-  status: "available" | "loaned" | "not_found" | "other_edition" | "error";
+  status:
+    | "available"
+    | "loaned"
+    | "not_found"
+    | "other_available"
+    | "other_loaned"
+    | "other_edition"
+    | "error";
   dueDate: string;
   location: string;
   link: string;
@@ -378,7 +385,9 @@ export function parseLibraryItems(html: string): LibraryItem[] {
         link: detailLink(raw.match(/name="check"\s+value="([^"]+)"/)?.[1]),
       };
     })
-    .filter((item) => item.isbns.length > 0);
+    // Drop large-print editions ("큰글자책"/"큰활자") — a separate physical book
+    // the user isn't watching; if only those match, the book counts as absent.
+    .filter((item) => item.isbns.length > 0 && !/큰글자|큰활자/.test(item.title));
 }
 
 async function fetchLibrary(url: string): Promise<LibraryItem[]> {
@@ -418,8 +427,22 @@ export async function checkBojeongLibrary(book: WatchedBook): Promise<LibraryChe
       }),
     );
     const wanted = coreTitle(book.title);
-    const sameWork = byTitle.some((item) => coreTitle(item.title) === wanted);
-    return { status: sameWork ? "other_edition" : "not_found", dueDate: "", location: "", link: "" };
+    const sameWork = byTitle.filter((item) => coreTitle(item.title) === wanted);
+    if (sameWork.length === 0) return { status: "not_found", dueDate: "", location: "", link: "" };
+
+    // Report the alternate edition's real availability and deep link so the user
+    // can act on it, preferring an on-shelf copy over a loaned one.
+    const availableAlt = sameWork.find((item) => item.available);
+    if (availableAlt) {
+      return { status: "other_available", dueDate: "", location: availableAlt.location, link: availableAlt.link };
+    }
+    const loanedAlt = sameWork.find((item) => item.loaned) ?? sameWork[0];
+    return {
+      status: loanedAlt.loaned ? "other_loaned" : "other_edition",
+      dueDate: loanedAlt.dueDate,
+      location: loanedAlt.location,
+      link: loanedAlt.link,
+    };
   } catch (error) {
     return {
       status: "error",

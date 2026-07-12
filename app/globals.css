@@ -98,6 +98,7 @@ a { color: inherit; }
 .filters .selected { background: var(--ink); color: white; border-color: var(--ink); }
 .filters .selected.good { background: var(--green); border-color: var(--green); }
 .filters .selected.coral { background: var(--coral); border-color: var(--coral); }
+.filters .selected.warn { background: #b26b24; border-color: #b26b24; }
 
 /* Dense card grid */
 .bookGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; }
@@ -120,21 +121,16 @@ a { color: inherit; }
 .bookMeta p { margin: 0; font-size: 11px; color: #6a685f; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .availability { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 9px; }
-.sourceRow { display: grid; grid-template-columns: 20px 1fr; gap: 7px; padding: 6px 8px; background: var(--paper); border-radius: 6px; align-items: center; }
-.sourceIcon { width: 19px; height: 19px; display: grid; place-items: center; border-radius: 50%; font: 700 9px var(--font-serif), serif; }
-.sourceIcon.aladin { background: #a8cc4b; color: #26390b; }
-.sourceIcon.library { background: #d9e7dc; color: var(--green); }
-.sourceRow div { display: flex; flex-direction: column; min-width: 0; }
+.sourceRow { display: flex; flex-direction: column; min-width: 0; padding: 7px 9px; background: var(--paper); border-radius: 6px; }
 .sourceRow small { color: #8b887f; font-size: 8px; }
-.sourceRow strong { font-size: 11px; line-height: 1.25; }
+.sourceRow strong { font-size: 11px; line-height: 1.3; margin-top: 2px; }
 .sourceRow strong.good { color: var(--green); }
 .sourceRow strong.warn { color: #b26b24; }
 .sourceRow strong.error { color: #a43f34; }
 .sourceRow strong.muted { color: #8c8981; }
-.sourceRow em { font-style: normal; color: #86837a; font-size: 8px; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sourceRow em { font-style: normal; color: #86837a; font-size: 8px; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .statusLink { text-decoration: none; }
-.statusLink strong { font-size: 11px; line-height: 1.25; text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
-.statusLink.good strong { color: var(--green); }
+.statusLink strong { text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
 .statusLink:hover strong { opacity: .72; }
 
 /* Live search over the watchlist */

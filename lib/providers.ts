@@ -19,6 +19,32 @@ export type AladinCheck = {
   error?: string;
 };
 
+export type UsedTier = { count: number; minPrice: number; link: string };
+
+export type AladinDetail = {
+  title: string;
+  subTitle: string;
+  originalTitle: string;
+  author: string;
+  publisher: string;
+  pubDate: string;
+  isbn13: string;
+  isbn: string;
+  categoryName: string;
+  description: string;
+  priceStandard: number | null;
+  priceSales: number | null;
+  mileage: number | null;
+  reviewRank: number | null;
+  page: number | null;
+  packing: string;
+  cover: string;
+  link: string;
+  usedAladin: UsedTier | null;
+  usedUser: UsedTier | null;
+  usedSpace: UsedTier | null;
+};
+
 export type LibraryCheck = {
   status: "available" | "loaned" | "not_found" | "other_edition" | "error";
   dueDate: string;
@@ -95,6 +121,71 @@ export async function lookupAladinBook(
   } catch {
     return null;
   }
+}
+
+export async function lookupAladinDetail(
+  isbn: string,
+  key: string | undefined,
+): Promise<AladinDetail | null> {
+  if (!key) return null;
+  const url = new URL(`${ALADIN_API}/ItemLookUp.aspx`);
+  url.search = new URLSearchParams({
+    ttbkey: key,
+    itemIdType: "ISBN13",
+    ItemId: isbn,
+    output: "JS",
+    Version: "20131101",
+    Cover: "Big",
+    OptResult: "usedList,packing",
+  }).toString();
+  const response = await fetch(url, { headers: { "user-agent": "BookScout/1.0" } });
+  if (!response.ok) throw new Error(`알라딘 상세조회 실패 (${response.status})`);
+  const data = (await response.json()) as {
+    errorMessage?: string;
+    item?: Array<Record<string, unknown>>;
+  };
+  if (data.errorMessage) throw new Error(data.errorMessage);
+  const item = data.item?.[0];
+  if (!item) return null;
+
+  const num = (value: unknown): number | null => (typeof value === "number" && value > 0 ? value : null);
+  const sub = (item.subInfo ?? {}) as Record<string, unknown>;
+  const tier = (raw: unknown): UsedTier | null => {
+    const t = raw as { itemCount?: number; minPrice?: number; link?: string } | undefined;
+    if (!t || !t.itemCount) return null;
+    return { count: Number(t.itemCount), minPrice: Number(t.minPrice ?? 0), link: String(t.link ?? "").replace(/&amp;/g, "&") };
+  };
+  const used = (sub.usedList ?? {}) as Record<string, unknown>;
+  const packing = (sub.packing ?? {}) as { styleDesc?: string; weight?: number; sizeWidth?: number; sizeHeight?: number; sizeDepth?: number };
+  const packingText = [
+    packing.styleDesc && packing.styleDesc !== "미확인" ? packing.styleDesc : "",
+    packing.weight ? `${packing.weight}g` : "",
+    packing.sizeWidth ? `${packing.sizeWidth}×${packing.sizeHeight}×${packing.sizeDepth}mm` : "",
+  ].filter(Boolean).join(" · ");
+
+  return {
+    title: String(item.title ?? ""),
+    subTitle: String(sub.subTitle ?? ""),
+    originalTitle: String(sub.originalTitle ?? ""),
+    author: String(item.author ?? ""),
+    publisher: String(item.publisher ?? ""),
+    pubDate: String(item.pubDate ?? ""),
+    isbn13: String(item.isbn13 ?? isbn),
+    isbn: String(item.isbn ?? ""),
+    categoryName: String(item.categoryName ?? ""),
+    description: plainText(String(item.description ?? "")),
+    priceStandard: num(item.priceStandard),
+    priceSales: num(item.priceSales),
+    mileage: num(item.mileage),
+    reviewRank: typeof item.customerReviewRank === "number" ? item.customerReviewRank : null,
+    page: num((sub as { itemPage?: number }).itemPage),
+    packing: packingText,
+    cover: String(item.cover ?? ""),
+    link: String(item.link ?? ""),
+    usedAladin: tier(used.aladinUsed),
+    usedUser: tier(used.userUsed),
+    usedSpace: tier(used.spaceUsed),
+  };
 }
 
 // The used-store product page is server-rendered only for a browser-like agent.

@@ -34,6 +34,32 @@ type SearchBook = {
   pubDate: string;
 };
 
+type UsedTier = { count: number; minPrice: number; link: string };
+
+type AladinDetail = {
+  title: string;
+  subTitle: string;
+  originalTitle: string;
+  author: string;
+  publisher: string;
+  pubDate: string;
+  isbn13: string;
+  isbn: string;
+  categoryName: string;
+  description: string;
+  priceStandard: number | null;
+  priceSales: number | null;
+  mileage: number | null;
+  reviewRank: number | null;
+  page: number | null;
+  packing: string;
+  cover: string;
+  link: string;
+  usedAladin: UsedTier | null;
+  usedUser: UsedTier | null;
+  usedSpace: UsedTier | null;
+};
+
 const aladinLabels: Record<string, string> = {
   in_stock: "재고 있음",
   out_of_stock: "재고 없음",
@@ -80,6 +106,33 @@ function libraryUrl(title: string) {
   return `https://lib.yongin.go.kr/bojeong/menu/14328/program/30012/plusSearchResultList.do?${params}`;
 }
 
+function won(value: number | null) {
+  return value ? `${value.toLocaleString()}원` : "—";
+}
+
+function usedTierText(tier: UsedTier | null) {
+  return tier ? `${tier.count}부 · ${tier.minPrice.toLocaleString()}원부터` : "없음";
+}
+
+function detailRows(d: AladinDetail): Array<[string, string]> {
+  const rows: Array<[string, string]> = [
+    ["저자", d.author],
+    ["출판사", d.publisher],
+    ["출간일", d.pubDate],
+    ["ISBN13", d.isbn13],
+    ["정가", won(d.priceStandard)],
+    ["판매가", d.priceSales ? `${d.priceSales.toLocaleString()}원${d.mileage ? ` (마일리지 ${d.mileage.toLocaleString()})` : ""}` : "—"],
+  ];
+  if (d.page) rows.push(["쪽수", `${d.page}쪽`]);
+  if (d.packing) rows.push(["사양", d.packing]);
+  if (d.originalTitle) rows.push(["원제", d.originalTitle]);
+  if (d.reviewRank != null) rows.push(["알라딘 평점", `${(d.reviewRank / 2).toFixed(1)} / 5`]);
+  rows.push(["알라딘 중고", usedTierText(d.usedAladin)]);
+  rows.push(["회원 중고", usedTierText(d.usedUser)]);
+  rows.push(["중고매장", usedTierText(d.usedSpace)]);
+  return rows.filter(([, value]) => value && value.trim());
+}
+
 const PAGE_SIZE = 20;
 
 type SortKey = "added" | "pubDesc" | "pubAsc";
@@ -99,9 +152,14 @@ export function BookScout() {
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState("");
   const [filter, setFilter] = useState<"all" | "aladin" | "library">("all");
+  const [listQuery, setListQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("added");
   const [page, setPage] = useState(1);
   const [showSetup, setShowSetup] = useState(false);
+  const [detailBook, setDetailBook] = useState<Book | null>(null);
+  const [detail, setDetail] = useState<AladinDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
 
   const loadBooks = useCallback(async () => {
     try {
@@ -121,6 +179,15 @@ export function BookScout() {
     return () => window.clearTimeout(timer);
   }, [loadBooks]);
 
+  useEffect(() => {
+    if (!detailBook) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDetailBook(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [detailBook]);
+
   const counts = useMemo(
     () => ({
       total: books.length,
@@ -131,9 +198,14 @@ export function BookScout() {
   );
 
   const filteredBooks = useMemo(() => {
+    const needle = listQuery.trim().toLowerCase();
     const matched = books.filter((book) => {
-      if (filter === "aladin") return book.aladinStatus === "in_stock";
-      if (filter === "library") return book.libraryStatus === "available";
+      if (filter === "aladin" && book.aladinStatus !== "in_stock") return false;
+      if (filter === "library" && book.libraryStatus !== "available") return false;
+      if (needle) {
+        const haystack = `${book.title} ${book.author} ${book.publisher} ${book.isbn13}`.toLowerCase();
+        if (!haystack.includes(needle)) return false;
+      }
       return true;
     });
     if (sort === "added") return matched;
@@ -147,7 +219,7 @@ export function BookScout() {
       return sort === "pubDesc" ? db.localeCompare(da) : da.localeCompare(db);
     });
     return sorted;
-  }, [books, filter, sort]);
+  }, [books, filter, sort, listQuery]);
 
   const pageCount = Math.max(1, Math.ceil(filteredBooks.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -217,6 +289,23 @@ export function BookScout() {
       setMessage(error instanceof Error ? error.message : "상태 확인에 실패했습니다.");
     } finally {
       setChecking(null);
+    }
+  }
+
+  async function openDetail(book: Book) {
+    setDetailBook(book);
+    setDetail(null);
+    setDetailError("");
+    setDetailLoading(true);
+    try {
+      const response = await fetch(`/api/aladin/item?isbn=${book.isbn13}`);
+      const data = (await response.json()) as { detail?: AladinDetail; error?: string };
+      if (!response.ok || !data.detail) throw new Error(data.error ?? "정보를 불러오지 못했습니다.");
+      setDetail(data.detail);
+    } catch (error) {
+      setDetailError(error instanceof Error ? error.message : "정보를 불러오지 못했습니다.");
+    } finally {
+      setDetailLoading(false);
     }
   }
 
@@ -295,6 +384,17 @@ export function BookScout() {
         <div className="sectionHead">
           <div><span className="sectionNumber">02</span><h2 id="books-title">나의 관심도서</h2></div>
           <div className="sectionControls">
+            <div className="listSearch">
+              <span aria-hidden="true">⌕</span>
+              <label className="srOnly" htmlFor="list-search">관심도서 검색</label>
+              <input
+                id="list-search"
+                value={listQuery}
+                onChange={(event) => { setListQuery(event.target.value); setPage(1); }}
+                placeholder="목록에서 검색"
+              />
+              {listQuery && <button onClick={() => { setListQuery(""); setPage(1); }} aria-label="검색어 지우기">×</button>}
+            </div>
             <div className="filters" role="group" aria-label="관심도서 필터">
               <button className={filter === "all" ? "selected" : ""} onClick={() => { setFilter("all"); setPage(1); }}>전체 {counts.total}</button>
               <button className={filter === "aladin" ? "selected coral" : ""} onClick={() => { setFilter("aladin"); setPage(1); }}>서현점 재고 {counts.aladin}</button>
@@ -316,14 +416,17 @@ export function BookScout() {
         ) : visibleBooks.length === 0 ? (
           <div className="bookGrid"><div className="emptyState">
             <span className="emptyBook">＋</span>
-            <h3>{!books.length ? "첫 관심도서를 담아보세요." : filter === "aladin" ? "서현점에 재고가 있는 책이 없어요." : filter === "library" ? "보정도서관에서 대출 가능한 책이 없어요." : "관심도서가 없습니다."}</h3>
-            <p>{!books.length ? "위 검색창에서 도서명이나 ISBN으로 찾을 수 있습니다." : "매일 확인해서 변화가 생기면 이곳에 표시합니다."}</p>
+            <h3>{!books.length ? "첫 관심도서를 담아보세요." : listQuery ? "검색과 일치하는 책이 없어요." : filter === "aladin" ? "서현점에 재고가 있는 책이 없어요." : filter === "library" ? "보정도서관에서 대출 가능한 책이 없어요." : "관심도서가 없습니다."}</h3>
+            <p>{!books.length ? "위 검색창에서 도서명이나 ISBN으로 찾을 수 있습니다." : listQuery ? "다른 검색어로 시도해 보세요." : "매일 확인해서 변화가 생기면 이곳에 표시합니다."}</p>
           </div></div>
         ) : (
           <div className="bookGrid">
-            {visibleBooks.map((book, index) => (
+            {visibleBooks.map((book) => (
               <article className="bookCard" key={book.id}>
-                <div className="cardIndex">{String((currentPage - 1) * PAGE_SIZE + index + 1).padStart(2, "0")}</div>
+                <div className="cardTools">
+                  <button className="cardInfo" onClick={() => void openDetail(book)} aria-label={`${book.title} 상세 정보`}>ⓘ</button>
+                  <button className="cardDelete" onClick={() => void removeBook(book)} aria-label={`${book.title} 삭제`}>×</button>
+                </div>
                 <div className="bookCover">
                   {book.cover ? <img src={book.cover} alt={`${book.title} 표지`} /> : <span>BOOK</span>}
                 </div>
@@ -336,11 +439,6 @@ export function BookScout() {
                   <div className="availability">
                     <div className="sourceRow"><span className="sourceIcon aladin">A</span><div><small>{book.aladinStore || "알라딘 서현점"}</small>{book.aladinStatus === "in_stock" && (book.checkAladinLink || book.aladinLink) ? <a className={`statusLink ${statusTone(book.aladinStatus)}`} href={book.checkAladinLink || book.aladinLink} target="_blank" rel="noreferrer"><strong>{aladinLabels.in_stock} ↗</strong></a> : <strong className={statusTone(book.aladinStatus)}>{aladinLabels[book.aladinStatus ?? ""] || "확인 전"}</strong>}{book.aladinPrice ? <em>{book.aladinPrice.toLocaleString()}원부터</em> : null}</div></div>
                     <div className="sourceRow"><span className="sourceIcon library">보</span><div><small>보정도서관</small>{book.libraryStatus === "available" ? <a className={`statusLink ${statusTone(book.libraryStatus)}`} href={book.libraryLink || libraryUrl(book.title)} target="_blank" rel="noreferrer"><strong>{libraryLabels.available} ↗</strong></a> : <strong className={statusTone(book.libraryStatus)}>{libraryLabels[book.libraryStatus ?? ""] || "확인 전"}</strong>}{book.libraryDueDate ? <em>{book.libraryDueDate} 반납</em> : book.libraryLocation ? <em>{book.libraryLocation}</em> : null}</div></div>
-                  </div>
-                  <div className="cardActions">
-                    <span>{relativeTime(book.checkedAt)}</span>
-                    <button onClick={() => void runCheck(book.id)} disabled={checking !== null}>{checking === book.id ? "확인 중…" : "지금 확인"}</button>
-                    <button className="delete" onClick={() => void removeBook(book)} aria-label={`${book.title} 삭제`}>×</button>
                   </div>
                 </div>
               </article>
@@ -356,6 +454,39 @@ export function BookScout() {
           </nav>
         )}
       </section>
+
+      {detailBook && (
+        <div className="modalOverlay" role="dialog" aria-modal="true" aria-label="도서 상세 정보" onClick={() => setDetailBook(null)}>
+          <div className="modalPanel" onClick={(event) => event.stopPropagation()}>
+            <button className="modalClose" onClick={() => setDetailBook(null)} aria-label="닫기">×</button>
+            {detailLoading ? (
+              <div className="modalState"><span className="loadingDot" />알라딘에서 정보를 불러오는 중…</div>
+            ) : detailError ? (
+              <div className="modalState">{detailError}</div>
+            ) : detail ? (
+              <>
+                <div className="modalHead">
+                  {detail.cover ? <img src={detail.cover} alt="" /> : <div className="coverFallback">BOOK</div>}
+                  <div>
+                    {detail.categoryName && <p className="modalCat">{detail.categoryName}</p>}
+                    <h2>{detail.title}</h2>
+                    {detail.subTitle && <p className="modalSub">{detail.subTitle}</p>}
+                    {detail.link && <a href={detail.link} target="_blank" rel="noreferrer">알라딘에서 보기 ↗</a>}
+                  </div>
+                </div>
+                <dl className="detailGrid">
+                  {detailRows(detail).map(([label, value]) => (
+                    <div key={label}><dt>{label}</dt><dd>{value}</dd></div>
+                  ))}
+                </dl>
+                {detail.description && (
+                  <div className="modalDesc"><h3>책 소개</h3><p>{detail.description}</p></div>
+                )}
+              </>
+            ) : null}
+          </div>
+        </div>
+      )}
 
       <footer>
         <div><span className="brandMark">책</span><strong>책갈피</strong></div>

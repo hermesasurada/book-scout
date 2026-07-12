@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.bookscout.server</string>
+  <key>ProgramArguments</key>
+  <array><string>/Users/yhandhs/projects/book-scout/scripts/start-local.sh</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>WorkingDirectory</key><string>/Users/yhandhs/projects/book-scout</string>
+  <key>StandardOutPath</key><string>/Users/yhandhs/projects/book-scout/.book-scout-server.log</string>
+  <key>StandardErrorPath</key><string>/Users/yhandhs/projects/book-scout/.book-scout-server.error.log</string>
+</dict>
+</plist>

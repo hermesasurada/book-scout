@@ -1,0 +1,300 @@
+"use client";
+/* eslint-disable @next/next/no-img-element -- cover URLs are supplied dynamically by Aladin */
+
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+
+type Book = {
+  id: number;
+  isbn13: string;
+  title: string;
+  author: string;
+  publisher: string;
+  cover: string;
+  aladinLink: string;
+  checkedAt?: string | null;
+  aladinStatus?: string | null;
+  aladinStore?: string | null;
+  aladinPrice?: number | null;
+  checkAladinLink?: string | null;
+  libraryStatus?: string | null;
+  libraryDueDate?: string | null;
+  libraryLocation?: string | null;
+  checkError?: string | null;
+};
+
+type SearchBook = {
+  isbn13: string;
+  title: string;
+  author: string;
+  publisher: string;
+  cover: string;
+  aladinLink: string;
+  pubDate: string;
+};
+
+const aladinLabels: Record<string, string> = {
+  in_stock: "재고 있음",
+  out_of_stock: "재고 없음",
+  unconfigured: "키 설정 필요",
+  error: "확인 실패",
+};
+
+const libraryLabels: Record<string, string> = {
+  available: "대출 가능",
+  loaned: "대출 중",
+  not_found: "검색 안 됨",
+  other_edition: "다른 판본 있음",
+  error: "확인 실패",
+};
+
+function statusTone(status?: string | null) {
+  if (status === "in_stock" || status === "available") return "good";
+  if (status === "loaned" || status === "other_edition" || status === "unconfigured") return "warn";
+  if (status === "error") return "error";
+  return "muted";
+}
+
+function relativeTime(value?: string | null) {
+  if (!value) return "아직 확인 전";
+  const date = new Date(value.endsWith("Z") ? value : `${value.replace(" ", "T")}Z`);
+  const minutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000));
+  if (minutes < 1) return "방금 전";
+  if (minutes < 60) return `${minutes}분 전`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}시간 전`;
+  return `${Math.floor(minutes / 1440)}일 전`;
+}
+
+export function BookScout() {
+  const [books, setBooks] = useState<Book[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [checking, setChecking] = useState<number | "all" | null>(null);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<SearchBook[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [message, setMessage] = useState("");
+  const [filter, setFilter] = useState<"all" | "found">("all");
+  const [showSetup, setShowSetup] = useState(false);
+
+  const loadBooks = useCallback(async () => {
+    try {
+      const response = await fetch("/api/books", { cache: "no-store" });
+      const data = (await response.json()) as { books?: Book[]; error?: string };
+      if (!response.ok) throw new Error(data.error);
+      setBooks(data.books ?? []);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "목록을 불러오지 못했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadBooks(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadBooks]);
+
+  const counts = useMemo(
+    () => ({
+      total: books.length,
+      aladin: books.filter((book) => book.aladinStatus === "in_stock").length,
+      library: books.filter((book) => book.libraryStatus === "available").length,
+    }),
+    [books],
+  );
+
+  const visibleBooks = filter === "all"
+    ? books
+    : books.filter((book) => book.aladinStatus === "in_stock" || book.libraryStatus === "available");
+
+  async function search(event: FormEvent) {
+    event.preventDefault();
+    if (query.trim().length < 2) return;
+    setSearching(true);
+    setMessage("");
+    try {
+      const response = await fetch(`/api/aladin/search?q=${encodeURIComponent(query.trim())}`);
+      const data = (await response.json()) as { books?: SearchBook[]; error?: string; code?: string };
+      if (!response.ok) {
+        if (data.code === "ALADIN_KEY_MISSING") setShowSetup(true);
+        throw new Error(data.error);
+      }
+      setResults(data.books ?? []);
+      if (!data.books?.length) setMessage("알라딘에서 검색 결과를 찾지 못했습니다.");
+    } catch (error) {
+      setResults([]);
+      setMessage(error instanceof Error ? error.message : "검색하지 못했습니다.");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function addBook(book: SearchBook) {
+    const response = await fetch("/api/books", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(book),
+    });
+    const data = (await response.json()) as { error?: string };
+    if (!response.ok) {
+      setMessage(data.error ?? "저장하지 못했습니다.");
+      return;
+    }
+    setMessage(`‘${book.title}’을 관심도서에 담았습니다.`);
+    setResults((current) => current.filter((item) => item.isbn13 !== book.isbn13));
+    await loadBooks();
+  }
+
+  async function removeBook(book: Book) {
+    if (!window.confirm(`‘${book.title}’을 관심도서에서 삭제할까요?`)) return;
+    const response = await fetch(`/api/books?id=${book.id}`, { method: "DELETE" });
+    if (response.ok) {
+      setBooks((current) => current.filter((item) => item.id !== book.id));
+      setMessage("관심도서에서 삭제했습니다.");
+    }
+  }
+
+  async function runCheck(bookId?: number) {
+    setChecking(bookId ?? "all");
+    setMessage("");
+    try {
+      const response = await fetch("/api/checks", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(bookId ? { bookId } : {}),
+      });
+      const data = (await response.json()) as { checked?: number; error?: string };
+      if (!response.ok) throw new Error(data.error);
+      setMessage(`${data.checked ?? 0}권의 상태를 새로 확인했습니다.`);
+      await loadBooks();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "상태 확인에 실패했습니다.");
+    } finally {
+      setChecking(null);
+    }
+  }
+
+  const latest = books.find((book) => book.checkedAt)?.checkedAt;
+
+  return (
+    <main>
+      <header className="topbar">
+        <a className="brand" href="#top" aria-label="책갈피 홈">
+          <span className="brandMark">책</span>
+          <span>책갈피</span>
+        </a>
+        <nav aria-label="주요 메뉴">
+          <a className="active" href="#books">관심도서</a>
+          <button className="navButton" onClick={() => setShowSetup((value) => !value)}>설정</button>
+        </nav>
+        <button className="checkAll" onClick={() => void runCheck()} disabled={checking !== null || books.length === 0}>
+          <span aria-hidden="true">↻</span>{checking === "all" ? "확인 중…" : "전체 지금 확인"}
+        </button>
+      </header>
+
+      <section className="hero" id="top">
+        <div className="heroCopy">
+          <p className="eyebrow">MY READING WATCHLIST</p>
+          <h1>기다리던 책을<br /><em>놓치지 않도록.</em></h1>
+          <p className="heroLead">알라딘 중고서점과 보정도서관을 매일 살펴보고,<br className="desktopOnly" /> 책을 만날 가장 좋은 순간을 알려드려요.</p>
+        </div>
+        <div className="summary" aria-label="관심도서 요약">
+          <div><strong>{counts.total}</strong><span>관심도서</span></div>
+          <div><strong className="coral">{counts.aladin}</strong><span>중고 재고</span></div>
+          <div><strong className="green">{counts.library}</strong><span>대출 가능</span></div>
+          <p><span className="pulse" /> 마지막 확인 · {relativeTime(latest)}</p>
+        </div>
+      </section>
+
+      <section className="searchSection" aria-labelledby="search-title">
+        <div>
+          <span className="sectionNumber">01</span>
+          <h2 id="search-title">관심도서 추가</h2>
+          <p>알라딘의 도서 정보로 정확하게 저장합니다.</p>
+        </div>
+        <form className="searchForm" onSubmit={search}>
+          <span aria-hidden="true">⌕</span>
+          <label className="srOnly" htmlFor="book-query">도서명, 저자 또는 ISBN</label>
+          <input id="book-query" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="도서명, 저자 또는 ISBN을 입력하세요" />
+          <button disabled={searching || query.trim().length < 2}>{searching ? "검색 중…" : "알라딘에서 찾기"}</button>
+        </form>
+      </section>
+
+      {results.length > 0 && (
+        <section className="searchResults" aria-label="알라딘 검색 결과">
+          {results.map((book) => (
+            <article key={book.isbn13}>
+              {book.cover ? <img src={book.cover} alt="" /> : <div className="coverFallback">BOOK</div>}
+              <div><h3>{book.title}</h3><p>{book.author}</p><small>{book.publisher} · {book.pubDate}</small></div>
+              <button onClick={() => void addBook(book)}>+ 관심도서</button>
+            </article>
+          ))}
+        </section>
+      )}
+
+      {message && <div className="toast" role="status"><span>i</span>{message}<button onClick={() => setMessage("")} aria-label="알림 닫기">×</button></div>}
+
+      {showSetup && (
+        <aside className="setupPanel" aria-label="초기 설정 안내">
+          <button className="closeSetup" onClick={() => setShowSetup(false)} aria-label="설정 안내 닫기">×</button>
+          <p className="eyebrow">ONE-TIME SETUP</p>
+          <h2>알라딘 API 키 연결</h2>
+          <p>프로젝트의 <code>.dev.vars</code> 파일에 <code>ALADIN_TTB_KEY</code>를 넣으면 검색과 서현점 재고 확인이 활성화됩니다.</p>
+          <a href="https://www.aladin.co.kr/ttb/wblog_manage.aspx" target="_blank" rel="noreferrer">TTB Key 발급 페이지 열기 ↗</a>
+          <div className="setupFacts"><span>중고 지점 <b>서현점</b></span><span>도서관 <b>보정도서관</b></span><span>자동 확인 <b>매일 08:00</b></span></div>
+        </aside>
+      )}
+
+      <section className="booksSection" id="books" aria-labelledby="books-title">
+        <div className="sectionHead">
+          <div><span className="sectionNumber">02</span><h2 id="books-title">나의 관심도서</h2></div>
+          <div className="filters" role="group" aria-label="관심도서 필터">
+            <button className={filter === "all" ? "selected" : ""} onClick={() => setFilter("all")}>전체 {counts.total}</button>
+            <button className={filter === "found" ? "selected" : ""} onClick={() => setFilter("found")}>지금 만날 수 있는 책 {counts.aladin + counts.library}</button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="emptyState"><span className="loadingDot" />관심도서를 불러오는 중입니다.</div>
+        ) : visibleBooks.length === 0 ? (
+          <div className="emptyState">
+            <span className="emptyBook">＋</span>
+            <h3>{books.length ? "지금 바로 만날 수 있는 책은 없어요." : "첫 관심도서를 담아보세요."}</h3>
+            <p>{books.length ? "매일 확인해서 변화가 생기면 이곳에 표시합니다." : "위 검색창에서 도서명이나 ISBN으로 찾을 수 있습니다."}</p>
+          </div>
+        ) : (
+          <div className="bookGrid">
+            {visibleBooks.map((book, index) => (
+              <article className="bookCard" key={book.id}>
+                <div className="cardIndex">{String(index + 1).padStart(2, "0")}</div>
+                <div className="bookCover">
+                  {book.cover ? <img src={book.cover} alt={`${book.title} 표지`} /> : <span>BOOK</span>}
+                </div>
+                <div className="bookMeta">
+                  <small>ISBN {book.isbn13}</small>
+                  <h3>{book.title}</h3>
+                  <p>{book.author}</p>
+                  <span>{book.publisher}</span>
+                </div>
+                <div className="availability">
+                  <div className="sourceRow"><span className="sourceIcon aladin">A</span><div><small>{book.aladinStore || "알라딘 서현점"}</small><strong className={statusTone(book.aladinStatus)}>{aladinLabels[book.aladinStatus ?? ""] || "확인 전"}</strong>{book.aladinPrice ? <em>{book.aladinPrice.toLocaleString()}원부터</em> : null}</div></div>
+                  <div className="sourceRow"><span className="sourceIcon library">보</span><div><small>보정도서관</small><strong className={statusTone(book.libraryStatus)}>{libraryLabels[book.libraryStatus ?? ""] || "확인 전"}</strong>{book.libraryDueDate ? <em>{book.libraryDueDate} 반납 예정</em> : book.libraryLocation ? <em>{book.libraryLocation}</em> : null}</div></div>
+                </div>
+                <div className="cardActions">
+                  <span>{relativeTime(book.checkedAt)}</span>
+                  <button onClick={() => void runCheck(book.id)} disabled={checking !== null}>{checking === book.id ? "확인 중…" : "지금 확인"}</button>
+                  <button className="delete" onClick={() => void removeBook(book)} aria-label={`${book.title} 삭제`}>×</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <footer>
+        <div><span className="brandMark">책</span><strong>책갈피</strong></div>
+        <p>도서 DB 제공: 알라딘 인터넷서점 · 도서관 정보: 용인시도서관</p>
+        <span>Tailscale private service</span>
+      </footer>
+    </main>
+  );
+}

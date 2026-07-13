@@ -149,6 +149,7 @@ function detailRows(d: AladinDetail): Array<[string, string]> {
 }
 
 const PAGE_SIZE = 20;
+const CACHE_KEY = "bookscout:books";
 
 type SortKey =
   | "added"
@@ -207,7 +208,13 @@ export function BookScout() {
       const response = await fetch("/api/books", { cache: "no-store" });
       const data = (await response.json()) as { books?: Book[]; error?: string };
       if (!response.ok) throw new Error(data.error);
-      setBooks(data.books ?? []);
+      const loaded = data.books ?? [];
+      setBooks(loaded);
+      try {
+        window.localStorage.setItem(CACHE_KEY, JSON.stringify(loaded));
+      } catch {
+        // storage full or unavailable — non-fatal, just skip caching
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "목록을 불러오지 못했습니다.");
     } finally {
@@ -215,8 +222,23 @@ export function BookScout() {
     }
   }, []);
 
+  // Show the cached list instantly on entry (no loading flash), then quietly
+  // revalidate in the background so the data stays current.
   useEffect(() => {
-    const timer = window.setTimeout(() => void loadBooks(), 0);
+    let cached: Book[] | null = null;
+    try {
+      const raw = window.localStorage.getItem(CACHE_KEY);
+      if (raw) cached = JSON.parse(raw) as Book[];
+    } catch {
+      // ignore malformed cache
+    }
+    const timer = window.setTimeout(() => {
+      if (cached) {
+        setBooks(cached);
+        setLoading(false);
+      }
+      void loadBooks();
+    }, 0);
     return () => window.clearTimeout(timer);
   }, [loadBooks]);
 
@@ -337,7 +359,15 @@ export function BookScout() {
     if (!window.confirm(`‘${book.title}’을 관심도서에서 삭제할까요?`)) return;
     const response = await fetch(`/api/books?id=${book.id}`, { method: "DELETE" });
     if (response.ok) {
-      setBooks((current) => current.filter((item) => item.id !== book.id));
+      setBooks((current) => {
+        const next = current.filter((item) => item.id !== book.id);
+        try {
+          window.localStorage.setItem(CACHE_KEY, JSON.stringify(next));
+        } catch {
+          // non-fatal
+        }
+        return next;
+      });
       setMessage("관심도서에서 삭제했습니다.");
     }
   }

@@ -344,7 +344,7 @@ export function BookScout() {
         <div className="heroCopy">
           <p className="eyebrow">MY READING WATCHLIST</p>
           <h1>기다리던 책을 <em>놓치지 않도록.</em></h1>
-          <p className="heroLead">알라딘 서현점과 보정도서관을 매일 살펴 책을 만날 순간을 알려드려요.</p>
+          <p className="heroLead">알라딘과 도서관을 매일 살펴 책을 만날 순간을 알려드려요.</p>
         </div>
         <div className="summary" aria-label="관심도서 요약">
           <div><strong>{counts.total}</strong><span>관심도서</span></div>
@@ -387,9 +387,9 @@ export function BookScout() {
           <button className="closeSetup" onClick={() => setShowSetup(false)} aria-label="설정 안내 닫기">×</button>
           <p className="eyebrow">ONE-TIME SETUP</p>
           <h2>알라딘 API 키 연결</h2>
-          <p>프로젝트의 <code>.dev.vars</code> 파일에 <code>ALADIN_TTB_KEY</code>를 넣으면 검색과 서현점 재고 확인이 활성화됩니다.</p>
+          <p>프로젝트의 <code>.dev.vars</code> 파일에 <code>ALADIN_TTB_KEY</code>를 넣으면 검색과 알라딘 재고 확인이 활성화됩니다.</p>
           <a href="https://www.aladin.co.kr/ttb/wblog_manage.aspx" target="_blank" rel="noreferrer">TTB Key 발급 페이지 열기 ↗</a>
-          <div className="setupFacts"><span>중고 지점 <b>서현점</b></span><span>도서관 <b>보정도서관</b></span><span>자동 확인 <b>매일 08:00</b></span></div>
+          <div className="setupFacts"><span>중고 <b>알라딘</b></span><span>대출 <b>도서관</b></span><span>자동 확인 <b>매일 08:00</b></span></div>
         </aside>
       )}
 
@@ -410,9 +410,9 @@ export function BookScout() {
             </div>
             <div className="filters" role="group" aria-label="관심도서 필터">
               <button className={filter === "all" ? "selected" : ""} onClick={() => { setFilter("all"); setPage(1); }}>전체 {counts.total}</button>
-              <button className={filter === "aladin" ? "selected coral" : ""} onClick={() => { setFilter("aladin"); setPage(1); }}>서현점 재고 {counts.aladin}</button>
-              <button className={filter === "library" ? "selected good" : ""} onClick={() => { setFilter("library"); setPage(1); }}>보정 대출가능 {counts.library}</button>
-              <button className={filter === "library_loaned" ? "selected warn" : ""} onClick={() => { setFilter("library_loaned"); setPage(1); }}>보정 대출중 {counts.libraryLoaned}</button>
+              <button className={filter === "aladin" ? "selected coral" : ""} onClick={() => { setFilter("aladin"); setPage(1); }}>알라딘 재고 {counts.aladin}</button>
+              <button className={filter === "library" ? "selected good" : ""} onClick={() => { setFilter("library"); setPage(1); }}>대출가능 {counts.library}</button>
+              <button className={filter === "library_loaned" ? "selected warn" : ""} onClick={() => { setFilter("library_loaned"); setPage(1); }}>대출중 {counts.libraryLoaned}</button>
             </div>
             <label className="sortSelect">
               <span className="srOnly">정렬 기준</span>
@@ -430,7 +430,7 @@ export function BookScout() {
         ) : visibleBooks.length === 0 ? (
           <div className="bookGrid"><div className="emptyState">
             <span className="emptyBook">＋</span>
-            <h3>{!books.length ? "첫 관심도서를 담아보세요." : listQuery ? "검색과 일치하는 책이 없어요." : filter === "aladin" ? "서현점에 재고가 있는 책이 없어요." : filter === "library" ? "보정도서관에서 대출 가능한 책이 없어요." : filter === "library_loaned" ? "보정도서관에서 대출 중인 책이 없어요." : "관심도서가 없습니다."}</h3>
+            <h3>{!books.length ? "첫 관심도서를 담아보세요." : listQuery ? "검색과 일치하는 책이 없어요." : filter === "aladin" ? "알라딘에 재고가 있는 책이 없어요." : filter === "library" ? "도서관에서 대출 가능한 책이 없어요." : filter === "library_loaned" ? "도서관에서 대출 중인 책이 없어요." : "관심도서가 없습니다."}</h3>
             <p>{!books.length ? "위 검색창에서 도서명이나 ISBN으로 찾을 수 있습니다." : listQuery ? "다른 검색어로 시도해 보세요." : "매일 확인해서 변화가 생기면 이곳에 표시합니다."}</p>
           </div></div>
         ) : (
@@ -451,8 +451,8 @@ export function BookScout() {
                     <p>{book.author}{book.publisher ? ` · ${book.publisher}` : ""}{book.pubDate ? ` · ${book.pubDate.slice(0, 7)}` : ""}</p>
                   </div>
                   <div className="availability">
-                    <div className="sourceRow"><small>{book.aladinStore || "알라딘 서현점"}</small>{book.aladinStatus === "in_stock" && (book.checkAladinLink || book.aladinLink) ? <a className="statusLink" href={book.checkAladinLink || book.aladinLink} target="_blank" rel="noreferrer"><strong className={statusTone(book.aladinStatus)}>{aladinLabels.in_stock} ↗</strong></a> : <strong className={statusTone(book.aladinStatus)}>{aladinLabels[book.aladinStatus ?? ""] || "확인 전"}</strong>}{book.aladinPrice ? <em>{book.aladinPrice.toLocaleString()}원부터</em> : null}</div>
-                    <div className="sourceRow"><small>보정도서관</small>{book.libraryLink || book.libraryStatus === "available" ? <a className="statusLink" href={book.libraryLink || libraryUrl(book.title)} target="_blank" rel="noreferrer"><strong className={statusTone(book.libraryStatus)}>{libraryLabels[book.libraryStatus ?? ""] || "확인 전"} ↗</strong></a> : <strong className={statusTone(book.libraryStatus)}>{libraryLabels[book.libraryStatus ?? ""] || "확인 전"}</strong>}{book.libraryDueDate ? <em>{book.libraryDueDate} 반납</em> : book.libraryLocation ? <em>{book.libraryLocation}</em> : null}</div>
+                    <div className="sourceRow"><small>알라딘</small>{book.aladinStatus === "in_stock" && (book.checkAladinLink || book.aladinLink) ? <a className="statusLink" href={book.checkAladinLink || book.aladinLink} target="_blank" rel="noreferrer"><strong className={statusTone(book.aladinStatus)}>{aladinLabels.in_stock} ↗</strong></a> : <strong className={statusTone(book.aladinStatus)}>{aladinLabels[book.aladinStatus ?? ""] || "확인 전"}</strong>}{book.aladinPrice ? <em>{book.aladinPrice.toLocaleString()}원부터</em> : null}</div>
+                    <div className="sourceRow"><small>도서관</small>{book.libraryLink || book.libraryStatus === "available" ? <a className="statusLink" href={book.libraryLink || libraryUrl(book.title)} target="_blank" rel="noreferrer"><strong className={statusTone(book.libraryStatus)}>{libraryLabels[book.libraryStatus ?? ""] || "확인 전"} ↗</strong></a> : <strong className={statusTone(book.libraryStatus)}>{libraryLabels[book.libraryStatus ?? ""] || "확인 전"}</strong>}{book.libraryDueDate ? <em>{book.libraryDueDate} 반납</em> : book.libraryLocation ? <em>{book.libraryLocation.replace("[보정]", "")}</em> : null}</div>
                   </div>
                 </div>
               </article>

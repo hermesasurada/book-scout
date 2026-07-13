@@ -381,7 +381,7 @@ export function parseLibraryItems(html: string): LibraryItem[] {
         available: /대출가능\s*\(비치중\)/.test(text),
         loaned: /대출불가|대출중|상호대차중/.test(text),
         dueDate: text.match(/반납예정일:\s*([0-9.\-]+)/)?.[1] ?? "",
-        location: text.match(/(\[보정\][^\s]+)/)?.[1] ?? "",
+        location: text.match(/\[보정\]([^\s]+)/)?.[1] ?? "",
         link: detailLink(raw.match(/name="check"\s+value="([^"]+)"/)?.[1]),
       };
     })
@@ -392,7 +392,7 @@ export function parseLibraryItems(html: string): LibraryItem[] {
 
 async function fetchLibrary(url: string): Promise<LibraryItem[]> {
   const response = await fetch(url, { headers: LIB_HEADERS });
-  if (!response.ok) throw new Error(`보정도서관 조회 실패 (${response.status})`);
+  if (!response.ok) throw new Error(`도서관 조회 실패 (${response.status})`);
   return parseLibraryItems(await response.text());
 }
 

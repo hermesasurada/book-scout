@@ -1,0 +1,1 @@
+ALTER TABLE `books` DROP COLUMN `used_min_price`;

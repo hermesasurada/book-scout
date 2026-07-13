@@ -16,7 +16,6 @@ type Book = {
   priceSales?: number | null;
   salesPoint?: number | null;
   reviewRank?: number | null;
-  usedMinPrice?: number | null;
   checkedAt?: string | null;
   aladinStatus?: string | null;
   aladinStore?: string | null;
@@ -166,14 +165,15 @@ const sortLabels: Record<SortKey, string> = {
   pubAsc: "출간일 오래된순",
   salesDesc: "판매지수 높은순",
   ratingDesc: "평점 높은순",
-  discountDesc: "중고 할인율 높은순",
+  discountDesc: "매장 할인율 높은순",
   dueAsc: "도서관 반납일 빠른순",
 };
 
-// Discount of the cheapest used copy against the current sale price.
+// Discount of the 분당서현점 offline-store used copy against the sale price.
+// Only in-stock books carry a store price.
 function usedDiscount(book: Book): number | null {
-  if (!book.priceSales || !book.usedMinPrice || book.usedMinPrice >= book.priceSales) return null;
-  return Math.round((1 - book.usedMinPrice / book.priceSales) * 100);
+  if (!book.priceSales || !book.aladinPrice || book.aladinPrice >= book.priceSales) return null;
+  return Math.round((1 - book.aladinPrice / book.priceSales) * 100);
 }
 
 // Broad category from Aladin's "국내도서>과학>생명과학>…" path — the segment
@@ -521,11 +521,10 @@ export function BookScout() {
                       {bookCategory(book) ? <span className="cat">{bookCategory(book)}</span> : null}
                       {book.reviewRank ? <span>★ {(book.reviewRank / 2).toFixed(1)}</span> : null}
                       {book.salesPoint ? <span>판매지수 {book.salesPoint.toLocaleString()}</span> : null}
-                      {usedDiscount(book) != null ? <span className="disc">중고 -{usedDiscount(book)}%</span> : null}
                     </p>
                   </div>
                   <div className="availability">
-                    <div className="sourceRow"><small>알라딘</small>{book.aladinStatus === "in_stock" && (book.checkAladinLink || book.aladinLink) ? <a className="statusLink" href={book.checkAladinLink || book.aladinLink} target="_blank" rel="noreferrer"><strong className={statusTone(book.aladinStatus)}>{aladinLabels.in_stock} ↗</strong></a> : <strong className={statusTone(book.aladinStatus)}>{aladinLabels[book.aladinStatus ?? ""] || "확인 전"}</strong>}{book.aladinPrice ? <em>{book.aladinPrice.toLocaleString()}원부터</em> : null}</div>
+                    <div className="sourceRow"><small>알라딘</small>{book.aladinStatus === "in_stock" && (book.checkAladinLink || book.aladinLink) ? <a className="statusLink" href={book.checkAladinLink || book.aladinLink} target="_blank" rel="noreferrer"><strong className={statusTone(book.aladinStatus)}>{aladinLabels.in_stock} ↗</strong></a> : <strong className={statusTone(book.aladinStatus)}>{aladinLabels[book.aladinStatus ?? ""] || "확인 전"}</strong>}{book.aladinPrice ? <em>{book.aladinPrice.toLocaleString()}원부터{usedDiscount(book) != null ? <b className="disc"> · -{usedDiscount(book)}%</b> : null}</em> : null}</div>
                     <div className="sourceRow"><small>도서관</small>{book.libraryLink || book.libraryStatus === "available" ? <a className="statusLink" href={book.libraryLink || libraryUrl(book.title)} target="_blank" rel="noreferrer"><strong className={statusTone(book.libraryStatus)}>{libraryLabels[book.libraryStatus ?? ""] || "확인 전"} ↗</strong></a> : <strong className={statusTone(book.libraryStatus)}>{libraryLabels[book.libraryStatus ?? ""] || "확인 전"}</strong>}{book.libraryDueDate ? <em>{book.libraryDueDate} 반납</em> : book.libraryLocation ? <em>{book.libraryLocation.replace("[보정]", "")}</em> : null}</div>
                   </div>
                 </div>

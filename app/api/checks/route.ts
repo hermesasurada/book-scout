@@ -40,7 +40,6 @@ export async function POST(request: Request) {
         priceSales: info.priceSales,
         salesPoint: info.salesPoint,
         reviewRank: info.reviewRank,
-        usedMinPrice: info.usedMinPrice,
       })
       .where(eq(books.id, book.id));
   };

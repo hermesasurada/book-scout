@@ -29,6 +29,13 @@
       "when": 1783915525288,
       "tag": "0003_lethal_tombstone",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1783916040880,
+      "tag": "0004_nebulous_tombstone",
+      "breakpoints": true
     }
   ]
 }

@@ -16,7 +16,6 @@ export const books = sqliteTable(
     priceSales: integer("price_sales"),
     salesPoint: integer("sales_point"),
     reviewRank: integer("review_rank"),
-    usedMinPrice: integer("used_min_price"),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => [uniqueIndex("books_isbn13_unique").on(table.isbn13)],

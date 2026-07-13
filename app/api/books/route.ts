@@ -19,7 +19,6 @@ export async function GET() {
         priceSales: books.priceSales,
         salesPoint: books.salesPoint,
         reviewRank: books.reviewRank,
-        usedMinPrice: books.usedMinPrice,
         createdAt: books.createdAt,
         checkedAt: checks.checkedAt,
         aladinStatus: checks.aladinStatus,

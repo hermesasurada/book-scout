@@ -106,17 +106,7 @@ export type AladinMeta = {
   priceSales: number | null;
   salesPoint: number | null;
   reviewRank: number | null;
-  usedMinPrice: number | null;
 };
-
-// Lowest price across the used tiers that actually have copies for sale.
-function usedMinPrice(usedList: unknown): number | null {
-  const tiers = (usedList ?? {}) as Record<string, { itemCount?: number; minPrice?: number }>;
-  const prices = [tiers.aladinUsed, tiers.userUsed, tiers.spaceUsed]
-    .filter((tier) => tier && Number(tier.itemCount) > 0 && Number(tier.minPrice) > 0)
-    .map((tier) => Number(tier!.minPrice));
-  return prices.length ? Math.min(...prices) : null;
-}
 
 export async function lookupAladinBook(isbn: string, key: string | undefined): Promise<AladinMeta | null> {
   if (!key) return null;
@@ -129,7 +119,6 @@ export async function lookupAladinBook(isbn: string, key: string | undefined): P
       output: "JS",
       Version: "20131101",
       Cover: "Big",
-      OptResult: "usedList",
     }).toString();
     const response = await fetch(url, { headers: { "user-agent": "BookScout/1.0" } });
     if (!response.ok) return null;
@@ -142,7 +131,6 @@ export async function lookupAladinBook(isbn: string, key: string | undefined): P
         priceSales?: number;
         salesPoint?: number;
         customerReviewRank?: number;
-        subInfo?: { usedList?: unknown };
       }>;
     };
     const item = data.item?.[0];
@@ -156,7 +144,6 @@ export async function lookupAladinBook(isbn: string, key: string | undefined): P
       priceSales: posInt(item.priceSales),
       salesPoint: typeof item.salesPoint === "number" ? item.salesPoint : null,
       reviewRank: typeof item.customerReviewRank === "number" ? item.customerReviewRank : null,
-      usedMinPrice: usedMinPrice(item.subInfo?.usedList),
     };
   } catch {
     return null;

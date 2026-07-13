@@ -12,6 +12,11 @@ type Book = {
   cover: string;
   aladinLink: string;
   pubDate?: string | null;
+  category?: string | null;
+  priceSales?: number | null;
+  salesPoint?: number | null;
+  reviewRank?: number | null;
+  usedMinPrice?: number | null;
   checkedAt?: string | null;
   aladinStatus?: string | null;
   aladinStore?: string | null;
@@ -146,13 +151,37 @@ function detailRows(d: AladinDetail): Array<[string, string]> {
 
 const PAGE_SIZE = 20;
 
-type SortKey = "added" | "pubDesc" | "pubAsc";
+type SortKey =
+  | "added"
+  | "pubDesc"
+  | "pubAsc"
+  | "salesDesc"
+  | "ratingDesc"
+  | "discountDesc"
+  | "dueAsc";
 
 const sortLabels: Record<SortKey, string> = {
   added: "추가한 순",
   pubDesc: "출간일 최신순",
   pubAsc: "출간일 오래된순",
+  salesDesc: "판매지수 높은순",
+  ratingDesc: "평점 높은순",
+  discountDesc: "중고 할인율 높은순",
+  dueAsc: "도서관 반납일 빠른순",
 };
+
+// Discount of the cheapest used copy against the current sale price.
+function usedDiscount(book: Book): number | null {
+  if (!book.priceSales || !book.usedMinPrice || book.usedMinPrice >= book.priceSales) return null;
+  return Math.round((1 - book.usedMinPrice / book.priceSales) * 100);
+}
+
+// Broad category from Aladin's "국내도서>과학>생명과학>…" path — the segment
+// after the top mall, used for the category filter.
+function bookCategory(book: Book): string {
+  const parts = (book.category || "").split(">").map((part) => part.trim()).filter(Boolean);
+  return parts[1] ?? parts[0] ?? "";
+}
 
 export function BookScout() {
   const [books, setBooks] = useState<Book[]>([]);
@@ -163,6 +192,7 @@ export function BookScout() {
   const [searching, setSearching] = useState(false);
   const [message, setMessage] = useState("");
   const [filter, setFilter] = useState<"all" | "aladin" | "library" | "library_loaned">("all");
+  const [categoryFilter, setCategoryFilter] = useState("");
   const [listQuery, setListQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("added");
   const [page, setPage] = useState(1);
@@ -209,12 +239,22 @@ export function BookScout() {
     [books],
   );
 
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    books.forEach((book) => {
+      const category = bookCategory(book);
+      if (category) set.add(category);
+    });
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [books]);
+
   const filteredBooks = useMemo(() => {
     const needle = listQuery.trim().toLowerCase();
     const matched = books.filter((book) => {
       if (filter === "aladin" && book.aladinStatus !== "in_stock") return false;
       if (filter === "library" && !libraryAvailable(book.libraryStatus)) return false;
       if (filter === "library_loaned" && !libraryLoaned(book.libraryStatus)) return false;
+      if (categoryFilter && bookCategory(book) !== categoryFilter) return false;
       if (needle) {
         const haystack = `${book.title} ${book.author} ${book.publisher} ${book.isbn13}`.toLowerCase();
         if (!haystack.includes(needle)) return false;
@@ -222,17 +262,34 @@ export function BookScout() {
       return true;
     });
     if (sort === "added") return matched;
-    const sorted = [...matched].sort((a, b) => {
-      // Books without a known pub date sort to the bottom regardless of order.
-      const da = a.pubDate || "";
-      const db = b.pubDate || "";
-      if (!da && !db) return 0;
-      if (!da) return 1;
-      if (!db) return -1;
-      return sort === "pubDesc" ? db.localeCompare(da) : da.localeCompare(db);
-    });
-    return sorted;
-  }, [books, filter, sort, listQuery]);
+
+    // In every mode, entries missing the sort value sink to the bottom.
+    const byNum = (value: (book: Book) => number | null) => (a: Book, b: Book) => {
+      const va = value(a);
+      const vb = value(b);
+      if (va == null && vb == null) return 0;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      return vb - va;
+    };
+    const byStr = (value: (book: Book) => string, asc: boolean) => (a: Book, b: Book) => {
+      const va = value(a);
+      const vb = value(b);
+      if (!va && !vb) return 0;
+      if (!va) return 1;
+      if (!vb) return -1;
+      return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+    };
+    const comparators: Record<Exclude<SortKey, "added">, (a: Book, b: Book) => number> = {
+      pubDesc: byStr((book) => book.pubDate || "", false),
+      pubAsc: byStr((book) => book.pubDate || "", true),
+      salesDesc: byNum((book) => book.salesPoint ?? null),
+      ratingDesc: byNum((book) => book.reviewRank ?? null),
+      discountDesc: byNum((book) => usedDiscount(book)),
+      dueAsc: byStr((book) => book.libraryDueDate || "", true),
+    };
+    return [...matched].sort(comparators[sort]);
+  }, [books, filter, categoryFilter, sort, listQuery]);
 
   const pageCount = Math.max(1, Math.ceil(filteredBooks.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -414,6 +471,17 @@ export function BookScout() {
               <button className={filter === "library" ? "selected good" : ""} onClick={() => { setFilter("library"); setPage(1); }}>대출가능 {counts.library}</button>
               <button className={filter === "library_loaned" ? "selected warn" : ""} onClick={() => { setFilter("library_loaned"); setPage(1); }}>대출중 {counts.libraryLoaned}</button>
             </div>
+            {categories.length > 0 && (
+              <label className="sortSelect">
+                <span className="srOnly">분류</span>
+                <select value={categoryFilter} onChange={(event) => { setCategoryFilter(event.target.value); setPage(1); }}>
+                  <option value="">전체 분류</option>
+                  {categories.map((category) => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="sortSelect">
               <span className="srOnly">정렬 기준</span>
               <select value={sort} onChange={(event) => { setSort(event.target.value as SortKey); setPage(1); }}>
@@ -449,6 +517,12 @@ export function BookScout() {
                     <small>ISBN {book.isbn13}</small>
                     <h3>{book.title}</h3>
                     <p>{book.author}{book.publisher ? ` · ${book.publisher}` : ""}{book.pubDate ? ` · ${book.pubDate.slice(0, 7)}` : ""}</p>
+                    <p className="bookMetrics">
+                      {bookCategory(book) ? <span className="cat">{bookCategory(book)}</span> : null}
+                      {book.reviewRank ? <span>★ {(book.reviewRank / 2).toFixed(1)}</span> : null}
+                      {book.salesPoint ? <span>판매지수 {book.salesPoint.toLocaleString()}</span> : null}
+                      {usedDiscount(book) != null ? <span className="disc">중고 -{usedDiscount(book)}%</span> : null}
+                    </p>
                   </div>
                   <div className="availability">
                     <div className="sourceRow"><small>알라딘</small>{book.aladinStatus === "in_stock" && (book.checkAladinLink || book.aladinLink) ? <a className="statusLink" href={book.checkAladinLink || book.aladinLink} target="_blank" rel="noreferrer"><strong className={statusTone(book.aladinStatus)}>{aladinLabels.in_stock} ↗</strong></a> : <strong className={statusTone(book.aladinStatus)}>{aladinLabels[book.aladinStatus ?? ""] || "확인 전"}</strong>}{book.aladinPrice ? <em>{book.aladinPrice.toLocaleString()}원부터</em> : null}</div>

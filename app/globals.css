@@ -119,6 +119,10 @@ a { color: inherit; }
 .bookMeta small { color: #a29f96; font-size: 9px; letter-spacing: .04em; }
 .bookMeta h3 { margin: 2px 0 2px; font: 500 15px/1.2 var(--font-serif), serif; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .bookMeta p { margin: 0; font-size: 11px; color: #6a685f; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bookMetrics { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 5px !important; font-size: 9px !important; color: var(--muted) !important; white-space: normal !important; }
+.bookMetrics span { display: inline-flex; align-items: center; }
+.bookMetrics .cat { background: var(--paper-deep); color: #6a685f; padding: 1px 6px; border-radius: 999px; }
+.bookMetrics .disc { color: var(--coral); font-weight: 600; }
 
 .availability { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 9px; }
 .sourceRow { display: flex; flex-direction: column; min-width: 0; padding: 7px 9px; background: var(--paper); border-radius: 6px; }

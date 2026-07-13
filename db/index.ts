@@ -43,14 +43,17 @@ export async function getDb() {
     // "ADD COLUMN IF NOT EXISTS", so tolerate the "duplicate column" error on
     // databases that already have it.
     .then(() =>
-      env.DB.prepare("ALTER TABLE books ADD COLUMN pub_date TEXT NOT NULL DEFAULT ''")
-        .run()
-        .catch(() => undefined),
-    )
-    .then(() =>
-      env.DB.prepare("ALTER TABLE checks ADD COLUMN library_link TEXT NOT NULL DEFAULT ''")
-        .run()
-        .catch(() => undefined),
+      Promise.all(
+        [
+          "ALTER TABLE books ADD COLUMN pub_date TEXT NOT NULL DEFAULT ''",
+          "ALTER TABLE books ADD COLUMN category TEXT NOT NULL DEFAULT ''",
+          "ALTER TABLE books ADD COLUMN price_sales INTEGER",
+          "ALTER TABLE books ADD COLUMN sales_point INTEGER",
+          "ALTER TABLE books ADD COLUMN review_rank INTEGER",
+          "ALTER TABLE books ADD COLUMN used_min_price INTEGER",
+          "ALTER TABLE checks ADD COLUMN library_link TEXT NOT NULL DEFAULT ''",
+        ].map((statement) => env.DB.prepare(statement).run().catch(() => undefined)),
+      ),
     )
     .then(() => undefined);
   await initialization;

@@ -98,10 +98,27 @@ export async function searchAladin(query: string, key: string): Promise<AladinSe
     }));
 }
 
-export async function lookupAladinBook(
-  isbn: string,
-  key: string | undefined,
-): Promise<{ cover: string; link: string; pubDate: string } | null> {
+export type AladinMeta = {
+  cover: string;
+  link: string;
+  pubDate: string;
+  category: string;
+  priceSales: number | null;
+  salesPoint: number | null;
+  reviewRank: number | null;
+  usedMinPrice: number | null;
+};
+
+// Lowest price across the used tiers that actually have copies for sale.
+function usedMinPrice(usedList: unknown): number | null {
+  const tiers = (usedList ?? {}) as Record<string, { itemCount?: number; minPrice?: number }>;
+  const prices = [tiers.aladinUsed, tiers.userUsed, tiers.spaceUsed]
+    .filter((tier) => tier && Number(tier.itemCount) > 0 && Number(tier.minPrice) > 0)
+    .map((tier) => Number(tier!.minPrice));
+  return prices.length ? Math.min(...prices) : null;
+}
+
+export async function lookupAladinBook(isbn: string, key: string | undefined): Promise<AladinMeta | null> {
   if (!key) return null;
   try {
     const url = new URL(`${ALADIN_API}/ItemLookUp.aspx`);
@@ -112,18 +129,34 @@ export async function lookupAladinBook(
       output: "JS",
       Version: "20131101",
       Cover: "Big",
+      OptResult: "usedList",
     }).toString();
     const response = await fetch(url, { headers: { "user-agent": "BookScout/1.0" } });
     if (!response.ok) return null;
     const data = (await response.json()) as {
-      item?: Array<{ cover?: string; link?: string; pubDate?: string }>;
+      item?: Array<{
+        cover?: string;
+        link?: string;
+        pubDate?: string;
+        categoryName?: string;
+        priceSales?: number;
+        salesPoint?: number;
+        customerReviewRank?: number;
+        subInfo?: { usedList?: unknown };
+      }>;
     };
     const item = data.item?.[0];
     if (!item) return null;
+    const posInt = (value: unknown): number | null => (typeof value === "number" && value > 0 ? value : null);
     return {
       cover: String(item.cover ?? ""),
       link: String(item.link ?? ""),
       pubDate: String(item.pubDate ?? ""),
+      category: String(item.categoryName ?? ""),
+      priceSales: posInt(item.priceSales),
+      salesPoint: typeof item.salesPoint === "number" ? item.salesPoint : null,
+      reviewRank: typeof item.customerReviewRank === "number" ? item.customerReviewRank : null,
+      usedMinPrice: usedMinPrice(item.subInfo?.usedList),
     };
   } catch {
     return null;

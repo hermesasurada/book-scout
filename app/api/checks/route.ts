@@ -24,10 +24,10 @@ export async function POST(request: Request) {
     ? await db.select().from(books).where(eq(books.id, payload.bookId))
     : await db.select().from(books);
 
-  // Enrich a book row from Aladin metadata (cover, product link, pub date) when
-  // any of those are missing. Bulk-imported books arrive without them.
+  // Refresh Aladin metadata for a book. Static fields (cover, link, pub date)
+  // are only filled when missing; volatile fields (price, sales point, review
+  // rank, used-market low) are refreshed every run so sorts stay current.
   const enrich = async (book: typeof targets[number]) => {
-    if (book.cover && book.pubDate) return;
     const info = await lookupAladinBook(book.isbn13, runtime.ALADIN_TTB_KEY);
     if (!info) return;
     await db
@@ -36,15 +36,19 @@ export async function POST(request: Request) {
         cover: book.cover || info.cover,
         aladinLink: book.cover ? book.aladinLink : info.link || book.aladinLink,
         pubDate: book.pubDate || info.pubDate,
+        category: info.category || book.category,
+        priceSales: info.priceSales,
+        salesPoint: info.salesPoint,
+        reviewRank: info.reviewRank,
+        usedMinPrice: info.usedMinPrice,
       })
       .where(eq(books.id, book.id));
   };
 
-  // Fast path: only backfill missing Aladin metadata, skip status checks.
+  // Fast path: only refresh Aladin metadata, skip status checks.
   if (payload.coversOnly) {
     let filled = 0;
     for (const book of targets) {
-      if (book.cover && book.pubDate) continue;
       await enrich(book);
       filled += 1;
     }

@@ -1,7 +1,7 @@
 ALADIN_TTB_KEY=알라딘_TTB_KEY를_입력하세요
 ALADIN_STORE_NAME=서현점
-# 텔레그램 일일 알림은 기본적으로 check-daily.sh가 stdout으로 출력한 뒤
-# hermes 크론이 전송한다(다른 프로젝트와 동일). 아래 두 값을 채우면 hermes 없이
-# 앱이 직접 전송하는 폴백도 동작한다 (선택).
+# 텔레그램 일일 알림은 check-daily.sh가 `hermes send`로 전송한다(hermes 자격증명
+# 재사용, 아래 값 불필요). 아래 두 값을 채우면 hermes 없이 앱이 직접 전송하는
+# 폴백도 동작한다 (선택).
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=

@@ -5,6 +5,31 @@ export type WatchedBook = {
   publisher: string;
 };
 
+// Send a plain notification via the Telegram Bot API. No-op (returns false) when
+// the bot token or chat id is not configured.
+export async function sendTelegram(
+  token: string | undefined,
+  chatId: string | undefined,
+  text: string,
+): Promise<boolean> {
+  if (!token || !chatId) return false;
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        parse_mode: "HTML",
+        disable_web_page_preview: true,
+      }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
 export type AladinSearchBook = WatchedBook & {
   cover: string;
   aladinLink: string;

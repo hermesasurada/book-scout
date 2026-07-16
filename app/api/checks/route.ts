@@ -1,10 +1,55 @@
 import { env } from "cloudflare:workers";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { books, checks } from "../../../db/schema";
-import { checkAladinStore, checkBojeongLibrary, lookupAladinBook } from "../../../lib/providers";
+import { checkAladinStore, checkBojeongLibrary, lookupAladinBook, sendTelegram } from "../../../lib/providers";
 
-type RuntimeEnv = { ALADIN_TTB_KEY?: string; ALADIN_STORE_NAME?: string; DAILY_CHECK_TOKEN?: string };
+type RuntimeEnv = {
+  ALADIN_TTB_KEY?: string;
+  ALADIN_STORE_NAME?: string;
+  DAILY_CHECK_TOKEN?: string;
+  TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_CHAT_ID?: string;
+};
+
+// A book is library-borrowable whether it's the exact edition or a verified
+// different edition of the same work.
+const libraryBorrowable = (status: string) => status === "available" || status === "other_available";
+
+function escapeHtml(value: string) {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+type Transition = {
+  title: string;
+  aladin: boolean;
+  library: boolean;
+  aladinLink: string;
+  aladinPrice: number | null;
+  libraryLink: string;
+};
+
+function buildNotification(transitions: Transition[]): string {
+  const lines = [`📚 <b>오늘 새로 만날 수 있는 책 ${transitions.length}권</b>`];
+  const aladin = transitions.filter((t) => t.aladin);
+  const library = transitions.filter((t) => t.library);
+  if (aladin.length) {
+    lines.push("", "🟢 <b>알라딘 재고</b>");
+    for (const t of aladin) {
+      const title = escapeHtml(t.title);
+      const price = t.aladinPrice ? ` — ${t.aladinPrice.toLocaleString()}원부터` : "";
+      lines.push(t.aladinLink ? `• <a href="${escapeHtml(t.aladinLink)}">${title}</a>${price}` : `• ${title}${price}`);
+    }
+  }
+  if (library.length) {
+    lines.push("", "📖 <b>도서관 대출가능</b>");
+    for (const t of library) {
+      const title = escapeHtml(t.title);
+      lines.push(t.libraryLink ? `• <a href="${escapeHtml(t.libraryLink)}">${title}</a>` : `• ${title}`);
+    }
+  }
+  return lines.join("\n");
+}
 
 export async function GET() {
   const db = await getDb();
@@ -18,11 +63,28 @@ export async function POST(request: Request) {
   if (runtime.DAILY_CHECK_TOKEN && supplied && supplied !== runtime.DAILY_CHECK_TOKEN) {
     return Response.json({ error: "점검 토큰이 올바르지 않습니다." }, { status: 401 });
   }
-  const payload = (await request.json().catch(() => ({}))) as { bookId?: number; coversOnly?: boolean };
+  const payload = (await request.json().catch(() => ({}))) as {
+    bookId?: number;
+    coversOnly?: boolean;
+    notify?: boolean;
+  };
   const db = await getDb();
   const targets = payload.bookId
     ? await db.select().from(books).where(eq(books.id, payload.bookId))
     : await db.select().from(books);
+
+  // Snapshot each book's most recent (i.e. previous-run / yesterday) status so
+  // we can detect books that just gained Aladin stock or library availability.
+  const notify = Boolean(payload.notify) && !payload.bookId;
+  const previous = new Map<number, { aladinStatus: string; libraryStatus: string }>();
+  if (notify) {
+    const rows = await db
+      .select({ bookId: checks.bookId, aladinStatus: checks.aladinStatus, libraryStatus: checks.libraryStatus })
+      .from(checks)
+      .where(sql`${checks.id} IN (SELECT MAX(id) FROM checks GROUP BY book_id)`);
+    for (const row of rows) previous.set(row.bookId, { aladinStatus: row.aladinStatus, libraryStatus: row.libraryStatus });
+  }
+  const transitions: Transition[] = [];
 
   // Refresh Aladin metadata for a book. Static fields (cover, link, pub date)
   // are only filled when missing; volatile fields (price, sales point, review
@@ -78,6 +140,30 @@ export async function POST(request: Request) {
       })
       .returning();
     results.push(saved);
+
+    if (notify) {
+      const prev = previous.get(book.id);
+      // Only flag genuine transitions against a known previous state.
+      const aladinNew = aladin.status === "in_stock" && prev !== undefined && prev.aladinStatus !== "in_stock";
+      const libraryNew =
+        libraryBorrowable(library.status) && prev !== undefined && !libraryBorrowable(prev.libraryStatus);
+      if (aladinNew || libraryNew) {
+        transitions.push({
+          title: book.title,
+          aladin: aladinNew,
+          library: libraryNew,
+          aladinLink: aladin.link || book.aladinLink,
+          aladinPrice: aladin.price,
+          libraryLink: library.link,
+        });
+      }
+    }
   }
-  return Response.json({ checked: results.length, results });
+
+  let notified = 0;
+  if (notify && transitions.length > 0) {
+    const sent = await sendTelegram(runtime.TELEGRAM_BOT_TOKEN, runtime.TELEGRAM_CHAT_ID, buildNotification(transitions));
+    notified = sent ? transitions.length : 0;
+  }
+  return Response.json({ checked: results.length, results, transitions: transitions.length, notified });
 }

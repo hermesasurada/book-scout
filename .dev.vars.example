@@ -1,2 +1,5 @@
 ALADIN_TTB_KEY=알라딘_TTB_KEY를_입력하세요
 ALADIN_STORE_NAME=서현점
+# 텔레그램 일일 알림 (선택) — @BotFather로 봇 생성 후 토큰과, 받을 chat_id 입력
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=

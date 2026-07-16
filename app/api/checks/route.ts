@@ -16,10 +16,6 @@ type RuntimeEnv = {
 // different edition of the same work.
 const libraryBorrowable = (status: string) => status === "available" || status === "other_available";
 
-function escapeHtml(value: string) {
-  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
 type Transition = {
   title: string;
   aladin: boolean;
@@ -29,23 +25,25 @@ type Transition = {
   libraryLink: string;
 };
 
+// Plain-text notification — printed to stdout for the hermes cron to deliver,
+// and usable as-is for a direct Telegram send.
 function buildNotification(transitions: Transition[]): string {
-  const lines = [`📚 <b>오늘 새로 만날 수 있는 책 ${transitions.length}권</b>`];
+  const lines = [`📚 오늘 새로 만날 수 있는 책 ${transitions.length}권`];
   const aladin = transitions.filter((t) => t.aladin);
   const library = transitions.filter((t) => t.library);
   if (aladin.length) {
-    lines.push("", "🟢 <b>알라딘 재고</b>");
+    lines.push("", "🟢 알라딘 재고");
     for (const t of aladin) {
-      const title = escapeHtml(t.title);
       const price = t.aladinPrice ? ` — ${t.aladinPrice.toLocaleString()}원부터` : "";
-      lines.push(t.aladinLink ? `• <a href="${escapeHtml(t.aladinLink)}">${title}</a>${price}` : `• ${title}${price}`);
+      lines.push(`• ${t.title}${price}`);
+      if (t.aladinLink) lines.push(`  ${t.aladinLink}`);
     }
   }
   if (library.length) {
-    lines.push("", "📖 <b>도서관 대출가능</b>");
+    lines.push("", "📖 도서관 대출가능");
     for (const t of library) {
-      const title = escapeHtml(t.title);
-      lines.push(t.libraryLink ? `• <a href="${escapeHtml(t.libraryLink)}">${title}</a>` : `• ${title}`);
+      lines.push(`• ${t.title}`);
+      if (t.libraryLink) lines.push(`  ${t.libraryLink}`);
     }
   }
   return lines.join("\n");
@@ -160,10 +158,12 @@ export async function POST(request: Request) {
     }
   }
 
-  let notified = 0;
-  if (notify && transitions.length > 0) {
-    const sent = await sendTelegram(runtime.TELEGRAM_BOT_TOKEN, runtime.TELEGRAM_CHAT_ID, buildNotification(transitions));
-    notified = sent ? transitions.length : 0;
+  // The daily cron prints `message` to stdout for the hermes gateway to deliver.
+  // A direct send also fires if a Telegram token is configured on this app.
+  const message = notify && transitions.length > 0 ? buildNotification(transitions) : "";
+  let notified = false;
+  if (message) {
+    notified = await sendTelegram(runtime.TELEGRAM_BOT_TOKEN, runtime.TELEGRAM_CHAT_ID, message);
   }
-  return Response.json({ checked: results.length, results, transitions: transitions.length, notified });
+  return Response.json({ checked: results.length, transitions: transitions.length, notified, message });
 }

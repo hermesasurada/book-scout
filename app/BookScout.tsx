@@ -536,6 +536,15 @@ export function BookScout() {
             {visibleBooks.map((book) => (
               <article className="bookCard" key={book.id}>
                 <div className="cardTools">
+                  <button
+                    className={`cardRefresh${checking === book.id ? " spinning" : ""}`}
+                    onClick={() => void runCheck(book.id)}
+                    disabled={checking !== null}
+                    aria-label={`${book.title} 지금 확인`}
+                    title="지금 확인"
+                  >
+                    ↻
+                  </button>
                   <button className="cardInfo" onClick={() => void openDetail(book)} aria-label={`${book.title} 상세 정보`}>ⓘ</button>
                   <button className="cardDelete" onClick={() => void removeBook(book)} aria-label={`${book.title} 삭제`}>×</button>
                 </div>

@@ -107,6 +107,11 @@ a { color: inherit; }
 .cardTools { position: absolute; top: 8px; right: 8px; display: flex; gap: 2px; z-index: 1; }
 .cardTools button { border: 0; background: transparent; line-height: 1; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; color: #aaa69c; }
 .cardTools button:hover { background: var(--paper-deep); }
+.cardTools button:disabled { opacity: .35; cursor: default; }
+.cardRefresh { font-size: 14px; }
+.cardRefresh:hover:not(:disabled) { color: var(--ink); }
+.cardRefresh.spinning { opacity: 1; color: var(--coral); animation: spin .9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
 .cardInfo { font-size: 14px; }
 .cardInfo:hover { color: var(--green); }
 .cardDelete { font-size: 17px; }

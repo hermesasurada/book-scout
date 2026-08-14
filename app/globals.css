@@ -118,6 +118,8 @@ a { color: inherit; }
 .cardDelete:hover { color: var(--coral); }
 .bookCover { width: 84px; height: 120px; background: var(--paper-deep); display: grid; place-items: center; box-shadow: 3px 4px 0 rgba(32,33,29,.09); overflow: hidden; border-radius: 2px; align-self: start; }
 .bookCover img { width: 100%; height: 100%; object-fit: cover; }
+a.bookCover { transition: .12s; }
+a.bookCover:hover { box-shadow: 3px 4px 0 rgba(32,33,29,.2); transform: translateY(-1px); }
 .bookCover span { font: 9px var(--font-serif), serif; letter-spacing: .1em; color: var(--muted); }
 .bookMain { min-width: 0; display: flex; flex-direction: column; }
 .bookMeta { padding-right: 42px; }

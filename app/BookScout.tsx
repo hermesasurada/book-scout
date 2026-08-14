@@ -107,6 +107,13 @@ function relativeTime(value?: string | null) {
   return `${Math.floor(minutes / 1440)}일 전`;
 }
 
+// Aladin HTML-escapes ampersands in its URLs. React writes href values
+// verbatim, so decode here too — rows stored before the provider fix still
+// carry "&amp;".
+function cleanUrl(url?: string | null) {
+  return (url || "").replace(/&amp;/g, "&");
+}
+
 // Deep link to the Bojeong library results for this title (mirrors the query
 // the daily checker sends). Books without a checked availability have no
 // library detail page, so only the search results are linkable.
@@ -548,9 +555,21 @@ export function BookScout() {
                   <button className="cardInfo" onClick={() => void openDetail(book)} aria-label={`${book.title} 상세 정보`}>ⓘ</button>
                   <button className="cardDelete" onClick={() => void removeBook(book)} aria-label={`${book.title} 삭제`}>×</button>
                 </div>
-                <div className="bookCover">
-                  {book.cover ? <img src={book.cover} alt={`${book.title} 표지`} /> : <span>BOOK</span>}
-                </div>
+                {book.aladinLink ? (
+                  <a
+                    className="bookCover"
+                    href={cleanUrl(book.aladinLink)}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`${book.title} 알라딘 상품 페이지`}
+                  >
+                    {book.cover ? <img src={book.cover} alt={`${book.title} 표지`} /> : <span>BOOK</span>}
+                  </a>
+                ) : (
+                  <div className="bookCover">
+                    {book.cover ? <img src={book.cover} alt={`${book.title} 표지`} /> : <span>BOOK</span>}
+                  </div>
+                )}
                 <div className="bookMain">
                   <div className="bookMeta">
                     <small>ISBN {book.isbn13}</small>
@@ -563,7 +582,7 @@ export function BookScout() {
                     </p>
                   </div>
                   <div className="availability">
-                    <div className="sourceRow"><small>알라딘</small>{book.aladinStatus === "in_stock" && (book.checkAladinLink || book.aladinLink) ? <a className="statusLink" href={book.checkAladinLink || book.aladinLink} target="_blank" rel="noreferrer"><strong className={statusTone(book.aladinStatus)}>{aladinLabels.in_stock} ↗</strong></a> : <strong className={statusTone(book.aladinStatus)}>{aladinLabels[book.aladinStatus ?? ""] || "확인 전"}</strong>}{book.aladinPrice ? <em>{book.aladinPrice.toLocaleString()}원부터{usedDiscount(book) != null ? <b className="disc"> · -{usedDiscount(book)}%</b> : null}</em> : null}</div>
+                    <div className="sourceRow"><small>알라딘</small>{book.aladinStatus === "in_stock" && (book.checkAladinLink || book.aladinLink) ? <a className="statusLink" href={cleanUrl(book.checkAladinLink || book.aladinLink)} target="_blank" rel="noreferrer"><strong className={statusTone(book.aladinStatus)}>{aladinLabels.in_stock} ↗</strong></a> : <strong className={statusTone(book.aladinStatus)}>{aladinLabels[book.aladinStatus ?? ""] || "확인 전"}</strong>}{book.aladinPrice ? <em>{book.aladinPrice.toLocaleString()}원부터{usedDiscount(book) != null ? <b className="disc"> · -{usedDiscount(book)}%</b> : null}</em> : null}</div>
                     <div className="sourceRow"><small>도서관</small>{book.libraryLink || book.libraryStatus === "available" ? <a className="statusLink" href={book.libraryLink || libraryUrl(book.title)} target="_blank" rel="noreferrer"><strong className={statusTone(book.libraryStatus)}>{libraryLabels[book.libraryStatus ?? ""] || "확인 전"} ↗</strong></a> : <strong className={statusTone(book.libraryStatus)}>{libraryLabels[book.libraryStatus ?? ""] || "확인 전"}</strong>}{book.libraryDueDate ? <em>{book.libraryDueDate} 반납</em> : book.libraryLocation ? <em>{book.libraryLocation.replace("[보정]", "")}</em> : null}</div>
                   </div>
                 </div>

@@ -117,7 +117,7 @@ export async function searchAladin(query: string, key: string): Promise<AladinSe
       author: String(item.author ?? ""),
       publisher: String(item.publisher ?? ""),
       cover: String(item.cover ?? ""),
-      aladinLink: String(item.link ?? ""),
+      aladinLink: String(item.link ?? "").replace(/&amp;/g, "&"),
       pubDate: String(item.pubDate ?? ""),
     }));
 }
@@ -162,7 +162,8 @@ export async function lookupAladinBook(isbn: string, key: string | undefined): P
     const posInt = (value: unknown): number | null => (typeof value === "number" && value > 0 ? value : null);
     return {
       cover: String(item.cover ?? ""),
-      link: String(item.link ?? ""),
+      // Aladin HTML-escapes ampersands in URLs; decode so the link works as an href.
+      link: String(item.link ?? "").replace(/&amp;/g, "&"),
       pubDate: String(item.pubDate ?? ""),
       category: String(item.categoryName ?? ""),
       priceSales: posInt(item.priceSales),
@@ -232,7 +233,7 @@ export async function lookupAladinDetail(
     page: num((sub as { itemPage?: number }).itemPage),
     packing: packingText,
     cover: String(item.cover ?? ""),
-    link: String(item.link ?? ""),
+    link: String(item.link ?? "").replace(/&amp;/g, "&"),
     usedAladin: tier(used.aladinUsed),
     usedUser: tier(used.userUsed),
     usedSpace: tier(used.spaceUsed),

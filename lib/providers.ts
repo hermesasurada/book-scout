@@ -3,6 +3,8 @@ export type WatchedBook = {
   title: string;
   author: string;
   publisher: string;
+  aladinItemId?: string | null;
+  aladinLink?: string | null;
 };
 
 // Send a plain notification via the Telegram Bot API. No-op (returns false) when
@@ -17,11 +19,7 @@ export async function sendTelegram(
     const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        disable_web_page_preview: true,
-      }),
+      body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
     });
     return response.ok;
   } catch {
@@ -29,10 +27,42 @@ export async function sendTelegram(
   }
 }
 
-export type AladinSearchBook = WatchedBook & {
+export type AladinSearchBook = {
+  isbn13: string;
+  itemId: string;
+  title: string;
+  author: string;
+  publisher: string;
   cover: string;
   aladinLink: string;
   pubDate: string;
+  priceStandard: number | null;
+  priceSales: number | null;
+  salesPoint: number | null;
+  reviewRank: number | null;
+};
+
+export type AladinProduct = {
+  itemId: string;
+  isbn13: string;
+  isbn: string;
+  title: string;
+  subTitle: string;
+  originalTitle: string;
+  author: string;
+  publisher: string;
+  pubDate: string;
+  categoryName: string;
+  description: string;
+  priceStandard: number | null;
+  priceSales: number | null;
+  salesPoint: number | null;
+  reviewRank: number | null;
+  reviewCount: number | null;
+  page: number | null;
+  packing: string;
+  cover: string;
+  link: string;
 };
 
 export type AladinCheck = {
@@ -41,32 +71,6 @@ export type AladinCheck = {
   price: number | null;
   link: string;
   error?: string;
-};
-
-export type UsedTier = { count: number; minPrice: number; link: string };
-
-export type AladinDetail = {
-  title: string;
-  subTitle: string;
-  originalTitle: string;
-  author: string;
-  publisher: string;
-  pubDate: string;
-  isbn13: string;
-  isbn: string;
-  categoryName: string;
-  description: string;
-  priceStandard: number | null;
-  priceSales: number | null;
-  mileage: number | null;
-  reviewRank: number | null;
-  page: number | null;
-  packing: string;
-  cover: string;
-  link: string;
-  usedAladin: UsedTier | null;
-  usedUser: UsedTier | null;
-  usedSpace: UsedTier | null;
 };
 
 export type LibraryCheck = {
@@ -84,168 +88,204 @@ export type LibraryCheck = {
   error?: string;
 };
 
-const ALADIN_API = "https://www.aladin.co.kr/ttb/api";
+// ---------------------------------------------------------------------------
+// Aladin — scraped from the public website. The TTB OpenAPI is being retired,
+// so search, product metadata and store stock all come from HTML pages now.
+// ---------------------------------------------------------------------------
+
+const ALADIN_WEB = "https://www.aladin.co.kr";
+// Aladin serves the full server-rendered page only to a browser-like agent.
+const WEB_HEADERS = {
+  "user-agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+  "accept-language": "ko-KR,ko;q=0.9",
+};
+
+export function aladinProductLink(itemId: string) {
+  return `${ALADIN_WEB}/shop/wproduct.aspx?ItemId=${itemId}`;
+}
+
+export function aladinItemIdFromLink(link: string | null | undefined): string {
+  return (link ?? "").match(/ItemId=(\d+)/i)?.[1] ?? "";
+}
+
+async function fetchWeb(url: string): Promise<string> {
+  const response = await fetch(url, { headers: WEB_HEADERS });
+  if (!response.ok) throw new Error(`알라딘 페이지 조회 실패 (${response.status})`);
+  return response.text();
+}
+
+function toNumber(value: string | undefined | null): number | null {
+  if (!value) return null;
+  const n = Number(value.replace(/[^\d.]/g, ""));
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function metaContent(html: string, name: string): string {
+  const match = html.match(
+    new RegExp(`<meta[^>]+(?:property|name|itemprop)="${name}"[^>]+content="([^"]*)"`, "i"),
+  );
+  return decodeHtml(match?.[1] ?? "").trim();
+}
+
+// Aladin keys list items by ISBN10; the app keys books by ISBN13.
+export function isbn10to13(isbn10: string): string {
+  const core = isbn10.replace(/[^\dXx]/g, "");
+  if (core.length === 13) return core;
+  if (core.length !== 10) return "";
+  const body = `978${core.slice(0, 9)}`;
+  let sum = 0;
+  for (let i = 0; i < 12; i += 1) sum += Number(body[i]) * (i % 2 === 0 ? 1 : 3);
+  return body + String((10 - (sum % 10)) % 10);
+}
 
 function cleanAladinTitle(title: string) {
   return title.replace(/^\[중고\]\s*/, "").trim();
 }
 
-export async function searchAladin(query: string, key: string): Promise<AladinSearchBook[]> {
-  const url = new URL(`${ALADIN_API}/ItemSearch.aspx`);
-  url.search = new URLSearchParams({
-    ttbkey: key,
-    Query: query,
-    QueryType: "Keyword",
-    MaxResults: "12",
-    start: "1",
-    SearchTarget: "Book",
-    output: "JS",
-    Version: "20131101",
-    Cover: "Big",
-  }).toString();
-
-  const response = await fetch(url, { headers: { "user-agent": "BookScout/1.0" } });
-  if (!response.ok) throw new Error(`알라딘 검색 실패 (${response.status})`);
-  const data = (await response.json()) as { errorMessage?: string; item?: Array<Record<string, unknown>> };
-  if (data.errorMessage) throw new Error(data.errorMessage);
-
-  return (data.item ?? [])
-    .filter((item) => String(item.isbn13 ?? "").length === 13)
-    .map((item) => ({
-      isbn13: String(item.isbn13),
-      title: cleanAladinTitle(String(item.title ?? "")),
-      author: String(item.author ?? ""),
-      publisher: String(item.publisher ?? ""),
-      cover: String(item.cover ?? ""),
-      aladinLink: String(item.link ?? "").replace(/&amp;/g, "&"),
-      pubDate: String(item.pubDate ?? ""),
-    }));
+// Each search result is a `ss_book_box` block carrying itemId, the front
+// cover, title/subtitle anchors and a "author | publisher | YYYY년 M월 price"
+// text line.
+export function parseAladinSearch(html: string): AladinSearchBook[] {
+  const blocks = html.split(/class="ss_book_box"/i).slice(1);
+  const results: AladinSearchBook[] = [];
+  for (const raw of blocks) {
+    const block = raw.slice(0, raw.indexOf('class="ss_book_box"') > 0 ? raw.indexOf('class="ss_book_box"') : undefined);
+    const itemId = block.match(/^[^>]*itemId="(\d+)"/i)?.[1] ?? "";
+    const isbnRaw = block.match(/AddBook=(\d{10,13})/)?.[1] ?? block.match(/[?&]ISBN=(\d{10,13})/)?.[1] ?? "";
+    const isbn13 = isbn10to13(isbnRaw);
+    if (!itemId || !isbn13) continue;
+    const main = decodeHtml(block.match(/class="bo3"[^>]*>([^<]*)</)?.[1] ?? "").trim();
+    const sub = decodeHtml(block.match(/class="ss_f_g2"[^>]*>([^<]*)</)?.[1] ?? "").trim();
+    const title = cleanAladinTitle(sub ? `${main} ${sub}`.replace(/\s+/g, " ") : main);
+    const cover =
+      block.match(/<img[^>]*src="([^"]+)"[^>]*class="front_cover"/)?.[1] ??
+      block.match(/https:\/\/image\.aladin\.co\.kr\/product\/[^"']*cover\d*\/[^"']+/)?.[0] ??
+      "";
+    const text = plainText(block);
+    const titleAt = text.indexOf(main);
+    const afterTitle = titleAt >= 0 ? text.slice(titleAt + main.length) : text;
+    const afterSub = sub && afterTitle.indexOf(sub) >= 0 ? afterTitle.slice(afterTitle.indexOf(sub) + sub.length) : afterTitle;
+    const segments = afterSub.split("|").map((s) => s.trim());
+    // Some listings prefix a series tag ("ㅣ 시리즈명 (2019년) ") before the authors.
+    const author = (segments[0] ?? "").replace(/^ㅣ\s*.*?\(\d{4}년\)\s*/, "").trim();
+    const publisher = segments[1] ?? "";
+    const dateMatch = afterSub.match(/(\d{4})년\s*(\d{1,2})월/);
+    const pubDate = dateMatch ? `${dateMatch[1]}-${dateMatch[2].padStart(2, "0")}` : "";
+    const priceMatch = afterSub.match(/([\d,]+)\s*원\s*→\s*([\d,]+)\s*원/) ?? afterSub.match(/([\d,]+)\s*원/);
+    const priceStandard = toNumber(priceMatch?.[1]);
+    const priceSales = priceMatch && priceMatch[2] ? toNumber(priceMatch[2]) : priceStandard;
+    const rating = afterSub.match(/(\d+(?:\.\d)?)\s*\(\s*\d+\s*\)\s*\|?\s*세일즈포인트/)?.[1];
+    const salesPoint = toNumber(afterSub.match(/세일즈포인트\s*:\s*([\d,]+)/)?.[1]);
+    results.push({
+      isbn13,
+      itemId,
+      title,
+      author,
+      publisher,
+      cover,
+      aladinLink: aladinProductLink(itemId),
+      pubDate,
+      priceStandard,
+      priceSales,
+      salesPoint,
+      reviewRank: rating ? Math.round(Number(rating)) : null,
+    });
+  }
+  return results;
 }
 
-export type AladinMeta = {
-  cover: string;
-  link: string;
-  pubDate: string;
-  category: string;
-  priceSales: number | null;
-  salesPoint: number | null;
-  reviewRank: number | null;
-};
+export async function searchAladin(query: string): Promise<AladinSearchBook[]> {
+  const url = `${ALADIN_WEB}/search/wsearchresult.aspx?SearchTarget=Book&SearchWord=${encodeURIComponent(query)}`;
+  return parseAladinSearch(await fetchWeb(url)).slice(0, 12);
+}
 
-export async function lookupAladinBook(isbn: string, key: string | undefined): Promise<AladinMeta | null> {
-  if (!key) return null;
+// Resolve an ItemId for a bare ISBN (bulk-imported rows) by searching the site.
+export async function findAladinItemId(isbn13: string): Promise<string> {
   try {
-    const url = new URL(`${ALADIN_API}/ItemLookUp.aspx`);
-    url.search = new URLSearchParams({
-      ttbkey: key,
-      itemIdType: "ISBN13",
-      ItemId: isbn,
-      output: "JS",
-      Version: "20131101",
-      Cover: "Big",
-    }).toString();
-    const response = await fetch(url, { headers: { "user-agent": "BookScout/1.0" } });
-    if (!response.ok) return null;
-    const data = (await response.json()) as {
-      item?: Array<{
-        cover?: string;
-        link?: string;
-        pubDate?: string;
-        categoryName?: string;
-        priceSales?: number;
-        salesPoint?: number;
-        customerReviewRank?: number;
-      }>;
-    };
-    const item = data.item?.[0];
-    if (!item) return null;
-    const posInt = (value: unknown): number | null => (typeof value === "number" && value > 0 ? value : null);
-    return {
-      cover: String(item.cover ?? ""),
-      // Aladin HTML-escapes ampersands in URLs; decode so the link works as an href.
-      link: String(item.link ?? "").replace(/&amp;/g, "&"),
-      pubDate: String(item.pubDate ?? ""),
-      category: String(item.categoryName ?? ""),
-      priceSales: posInt(item.priceSales),
-      salesPoint: typeof item.salesPoint === "number" ? item.salesPoint : null,
-      reviewRank: typeof item.customerReviewRank === "number" ? item.customerReviewRank : null,
-    };
+    const hits = await searchAladin(isbn13);
+    return hits.find((hit) => hit.isbn13 === isbn13)?.itemId ?? hits[0]?.itemId ?? "";
   } catch {
-    return null;
+    return "";
   }
 }
 
-export async function lookupAladinDetail(
-  isbn: string,
-  key: string | undefined,
-): Promise<AladinDetail | null> {
-  if (!key) return null;
-  const url = new URL(`${ALADIN_API}/ItemLookUp.aspx`);
-  url.search = new URLSearchParams({
-    ttbkey: key,
-    itemIdType: "ISBN13",
-    ItemId: isbn,
-    output: "JS",
-    Version: "20131101",
-    Cover: "Big",
-    OptResult: "usedList,packing",
-  }).toString();
-  const response = await fetch(url, { headers: { "user-agent": "BookScout/1.0" } });
-  if (!response.ok) throw new Error(`알라딘 상세조회 실패 (${response.status})`);
-  const data = (await response.json()) as {
-    errorMessage?: string;
-    item?: Array<Record<string, unknown>>;
-  };
-  if (data.errorMessage) throw new Error(data.errorMessage);
-  const item = data.item?.[0];
-  if (!item) return null;
+// Product page: og:/JSON-LD carry ISBN, cover, price, rating; the byline block
+// ("Ere_sub2_title") carries authors, publisher, exact date and original title.
+export function parseAladinProduct(html: string, itemId: string): AladinProduct | null {
+  const isbn13 = metaContent(html, "books:isbn") || metaContent(html, "og:barcode");
+  if (!isbn13) return null;
+  const text = plainText(html);
+  const ogTitle = metaContent(html, "og:title");
+  const title = cleanAladinTitle(ogTitle.split("|")[0].trim());
 
-  const num = (value: unknown): number | null => (typeof value === "number" && value > 0 ? value : null);
-  const sub = (item.subInfo ?? {}) as Record<string, unknown>;
-  const tier = (raw: unknown): UsedTier | null => {
-    const t = raw as { itemCount?: number; minPrice?: number; link?: string } | undefined;
-    if (!t || !t.itemCount) return null;
-    return { count: Number(t.itemCount), minPrice: Number(t.minPrice ?? 0), link: String(t.link ?? "").replace(/&amp;/g, "&") };
-  };
-  const used = (sub.usedList ?? {}) as Record<string, unknown>;
-  const packing = (sub.packing ?? {}) as { styleDesc?: string; weight?: number; sizeWidth?: number; sizeHeight?: number; sizeDepth?: number };
-  const packingText = [
-    packing.styleDesc && packing.styleDesc !== "미확인" ? packing.styleDesc : "",
-    packing.weight ? `${packing.weight}g` : "",
-    packing.sizeWidth ? `${packing.sizeWidth}×${packing.sizeHeight}×${packing.sizeDepth}mm` : "",
-  ].filter(Boolean).join(" · ");
+  const bylineAt = html.indexOf("Ere_sub2_title");
+  const byline = bylineAt >= 0 ? plainText(html.slice(bylineAt, bylineAt + 1200)) : "";
+  const pubDate = metaContent(html, "datePublished") || byline.match(/\d{4}-\d{2}-\d{2}/)?.[0] || "";
+  let author = metaContent(html, "og:author");
+  let publisher = "";
+  if (pubDate && byline.includes(pubDate)) {
+    const before = byline.slice(0, byline.indexOf(pubDate)).replace(/^Ere_sub2_title"?>?\s*/, "").trim();
+    const lastParen = before.lastIndexOf(")");
+    if (lastParen >= 0) {
+      author = before.slice(0, lastParen + 1).trim();
+      publisher = before.slice(lastParen + 1).trim();
+    } else {
+      publisher = before.split(/\s{2,}/).pop()?.trim() ?? "";
+    }
+  }
+  // The original title is an anchor whose text reads "원제 : <title>".
+  const originalTitle = decodeHtml(
+    html.slice(bylineAt, bylineAt + 2500).match(/<a[^>]*>\s*원제\s*[:：]\s*([^<]+)<\/a>/)?.[1] ?? "",
+  ).trim();
+  const firstAuthor = author.split(/[,(]/)[0].trim();
+  const subTitle =
+    title && firstAuthor
+      ? text.match(new RegExp(`${escapeRegExp(title)}\\s*-\\s*(.+?)\\s+${escapeRegExp(firstAuthor)}`))?.[1]?.trim() ?? ""
+      : "";
+
+  const categoryRaw = text.match(/(국내도서(?:\s*>\s*[^>|]+?)+)\s*접기/)?.[1] ?? "";
+  const categoryName = categoryRaw.split(">").map((s) => s.trim()).filter(Boolean).join(">");
+
+  const ratingValue = html.match(/"ratingValue"\s*:\s*"?([\d.]+)"?/)?.[1] ?? metaContent(html, "books:rating:value");
+  const reviewCount = html.match(/"reviewCount"\s*:\s*"?(\d+)"?/)?.[1];
+  const page = toNumber(text.match(/(\d+)쪽/)?.[1]);
+  const size = text.match(/(\d+)\s*\*\s*(\d+)\s*mm/);
+  const weight = text.match(/(\d+)\s*g\b/)?.[1];
+  const packing = [size ? `${size[1]}×${size[2]}mm` : "", weight ? `${weight}g` : ""].filter(Boolean).join(" · ");
 
   return {
-    title: String(item.title ?? ""),
-    subTitle: String(sub.subTitle ?? ""),
-    originalTitle: String(sub.originalTitle ?? ""),
-    author: String(item.author ?? ""),
-    publisher: String(item.publisher ?? ""),
-    pubDate: String(item.pubDate ?? ""),
-    isbn13: String(item.isbn13 ?? isbn),
-    isbn: String(item.isbn ?? ""),
-    categoryName: String(item.categoryName ?? ""),
-    description: plainText(String(item.description ?? "")),
-    priceStandard: num(item.priceStandard),
-    priceSales: num(item.priceSales),
-    mileage: num(item.mileage),
-    reviewRank: typeof item.customerReviewRank === "number" ? item.customerReviewRank : null,
-    page: num((sub as { itemPage?: number }).itemPage),
-    packing: packingText,
-    cover: String(item.cover ?? ""),
-    link: String(item.link ?? "").replace(/&amp;/g, "&"),
-    usedAladin: tier(used.aladinUsed),
-    usedUser: tier(used.userUsed),
-    usedSpace: tier(used.spaceUsed),
+    itemId,
+    isbn13,
+    isbn: html.match(/[?&]ISBN=(\d{10})\b/)?.[1] ?? "",
+    title,
+    subTitle,
+    originalTitle,
+    author,
+    publisher,
+    pubDate,
+    categoryName,
+    description: metaContent(html, "og:description"),
+    priceStandard: toNumber(text.match(/정가\s*[:：]?\s*([\d,]+)\s*원/)?.[1]),
+    priceSales: toNumber(metaContent(html, "og:price")),
+    salesPoint: toNumber(text.match(/Sales\s*Point\s*[:：]?\s*\|?\s*([\d,]+)/i)?.[1]),
+    reviewRank: ratingValue ? Math.round(Number(ratingValue)) : null,
+    reviewCount: reviewCount ? Number(reviewCount) : null,
+    page,
+    packing,
+    cover: metaContent(html, "og:image"),
+    link: aladinProductLink(itemId),
   };
 }
 
-// The used-store product page is server-rendered only for a browser-like agent.
-const STORE_PAGE_HEADERS = {
-  "user-agent":
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-  "accept-language": "ko-KR,ko;q=0.9",
-};
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export async function lookupAladinProduct(itemId: string): Promise<AladinProduct | null> {
+  if (!/^\d+$/.test(itemId)) return null;
+  return parseAladinProduct(await fetchWeb(aladinProductLink(itemId)), itemId);
+}
 
 // Parse a used-store product page for the on-hand copy count and lowest copy
 // price. The stock reads as `<b>재고 </b>:<span ...><b> 2부</b></span>`; copy
@@ -260,55 +300,29 @@ function parseStoreStock(html: string): { count: number; price: number | null } 
   return { count, price: prices.length ? Math.min(...prices) : null };
 }
 
+// Per-store stock comes straight from the store's product page, addressed by
+// the Aladin ItemId plus the store's OffCode (e.g. "Bundang" = 분당서현점).
 export async function checkAladinStore(
   book: WatchedBook,
-  key: string | undefined,
-  targetStore: string,
+  storeCode: string,
+  storeName: string,
 ): Promise<AladinCheck> {
-  if (!key) {
-    return { status: "unconfigured", store: targetStore, price: null, link: "" };
+  const itemId = book.aladinItemId || aladinItemIdFromLink(book.aladinLink);
+  if (!itemId) {
+    return { status: "error", store: storeName, price: null, link: "", error: "알라딘 ItemId 없음" };
   }
-
+  const storeLink = `${ALADIN_WEB}/usedstore/wproduct.aspx?ItemId=${itemId}&OffCode=${encodeURIComponent(storeCode)}`;
   try {
-    const url = new URL(`${ALADIN_API}/ItemOffStoreList.aspx`);
-    url.search = new URLSearchParams({
-      ttbkey: key,
-      itemIdType: "ISBN13",
-      ItemId: book.isbn13,
-      output: "JS",
-      Version: "20131101",
-    }).toString();
-    const response = await fetch(url, { headers: { "user-agent": "BookScout/1.0" } });
-    if (!response.ok) throw new Error(`알라딘 중고재고 조회 실패 (${response.status})`);
-    const data = (await response.json()) as {
-      errorMessage?: string;
-      itemOffStoreList?: Array<{ offCode?: string; offName?: string; link?: string }>;
-    };
-    if (data.errorMessage) throw new Error(data.errorMessage);
-    const wanted = targetStore.replace(/점$/, "").replace(/\s/g, "");
-    const store = (data.itemOffStoreList ?? []).find((item) =>
-      String(item.offName ?? "").replace(/점$/, "").replace(/\s/g, "").includes(wanted),
-    );
-    // ItemOffStoreList only lists stores that *carry* the title — it returns the
-    // same ~14 major stores for many books and does not reflect on-hand copies.
-    // The store's own product page is the only reliable per-store count.
-    if (!store) return { status: "out_of_stock", store: targetStore, price: null, link: "" };
-    const storeName = String(store.offName || targetStore);
-    const storeLink = String(store.link ?? "").replace(/&amp;/g, "&");
-    if (!storeLink) return { status: "out_of_stock", store: storeName, price: null, link: "" };
-
-    const pageResponse = await fetch(storeLink, { headers: STORE_PAGE_HEADERS });
-    if (!pageResponse.ok) throw new Error(`알라딘 매장재고 조회 실패 (${pageResponse.status})`);
-    const { count, price } = parseStoreStock(await pageResponse.text());
+    const { count, price } = parseStoreStock(await fetchWeb(storeLink));
     if (count <= 0) return { status: "out_of_stock", store: storeName, price: null, link: storeLink };
     return { status: "in_stock", store: storeName, price, link: storeLink };
   } catch (error) {
     return {
       status: "error",
-      store: targetStore,
+      store: storeName,
       price: null,
-      link: "",
-      error: error instanceof Error ? error.message : "알라딘 조회 오류",
+      link: storeLink,
+      error: error instanceof Error ? error.message : "알라딘 매장 조회 오류",
     };
   }
 }

@@ -2,10 +2,18 @@ import { env } from "cloudflare:workers";
 import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { books, checks } from "../../../db/schema";
-import { checkAladinStore, checkBojeongLibrary, lookupAladinBook, sendTelegram } from "../../../lib/providers";
+import {
+  aladinItemIdFromLink,
+  aladinProductLink,
+  checkAladinStore,
+  checkBojeongLibrary,
+  findAladinItemId,
+  lookupAladinProduct,
+  sendTelegram,
+} from "../../../lib/providers";
 
 type RuntimeEnv = {
-  ALADIN_TTB_KEY?: string;
+  ALADIN_STORE_CODE?: string;
   ALADIN_STORE_NAME?: string;
   DAILY_CHECK_TOKEN?: string;
   TELEGRAM_BOT_TOKEN?: string;
@@ -84,42 +92,51 @@ export async function POST(request: Request) {
   }
   const transitions: Transition[] = [];
 
-  // Refresh Aladin metadata for a book. Static fields (cover, link, pub date)
-  // are only filled when missing; volatile fields (price, sales point, review
-  // rank, used-market low) are refreshed every run so sorts stay current.
-  const enrich = async (book: typeof targets[number]) => {
-    const info = await lookupAladinBook(book.isbn13, runtime.ALADIN_TTB_KEY);
-    if (!info) return;
-    await db
-      .update(books)
-      .set({
-        cover: book.cover || info.cover,
-        aladinLink: book.cover ? book.aladinLink : info.link || book.aladinLink,
-        pubDate: book.pubDate || info.pubDate,
-        category: info.category || book.category,
-        priceSales: info.priceSales,
-        salesPoint: info.salesPoint,
-        reviewRank: info.reviewRank,
-      })
-      .where(eq(books.id, book.id));
+  // Make sure a book has its Aladin ItemId (parsed from the stored link, or
+  // found via a site search for bulk-imported rows), then refresh metadata from
+  // the product page. Static fields are filled only when missing; price, sales
+  // point and rating are refreshed when forced (single-book / coversOnly) or
+  // when anything is still missing — the full daily run stays light.
+  const enrich = async (book: typeof targets[number], force: boolean): Promise<string> => {
+    const itemId = book.aladinItemId || aladinItemIdFromLink(book.aladinLink) || (await findAladinItemId(book.isbn13));
+    if (!itemId) return "";
+    const set: Partial<typeof books.$inferInsert> = { aladinItemId: itemId, aladinLink: aladinProductLink(itemId) };
+    const missing = !book.cover || !book.pubDate || !book.priceSales || !book.category;
+    if (force || missing) {
+      const product = await lookupAladinProduct(itemId).catch(() => null);
+      if (product) {
+        set.cover = book.cover || product.cover;
+        set.pubDate = product.pubDate || book.pubDate;
+        set.category = product.categoryName || book.category;
+        set.priceSales = product.priceSales;
+        set.salesPoint = product.salesPoint;
+        set.reviewRank = product.reviewRank;
+      }
+    }
+    await db.update(books).set(set).where(eq(books.id, book.id));
+    return itemId;
   };
 
   // Fast path: only refresh Aladin metadata, skip status checks.
   if (payload.coversOnly) {
     let filled = 0;
     for (const book of targets) {
-      await enrich(book);
+      await enrich(book, true);
       filled += 1;
     }
     return Response.json({ enriched: filled, scanned: targets.length });
   }
 
+  const storeCode = runtime.ALADIN_STORE_CODE || "Bundang";
+  const storeName = runtime.ALADIN_STORE_NAME || "분당서현점";
   const results = [];
   for (const book of targets) {
+    // Resolve the ItemId first — the store check needs it.
+    const itemId = await enrich(book, Boolean(payload.bookId));
+    const target = { ...book, aladinItemId: itemId || book.aladinItemId };
     const [aladin, library] = await Promise.all([
-      checkAladinStore(book, runtime.ALADIN_TTB_KEY, runtime.ALADIN_STORE_NAME || "서현점"),
-      checkBojeongLibrary(book),
-      enrich(book),
+      checkAladinStore(target, storeCode, storeName),
+      checkBojeongLibrary(target),
     ]);
     const error = [aladin.error, library.error].filter(Boolean).join(" / ");
     const [saved] = await db

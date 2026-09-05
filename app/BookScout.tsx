@@ -11,6 +11,7 @@ type Book = {
   publisher: string;
   cover: string;
   aladinLink: string;
+  aladinItemId?: string | null;
   pubDate?: string | null;
   category?: string | null;
   priceSales?: number | null;
@@ -30,38 +31,40 @@ type Book = {
 
 type SearchBook = {
   isbn13: string;
+  itemId: string;
   title: string;
   author: string;
   publisher: string;
   cover: string;
   aladinLink: string;
   pubDate: string;
+  priceStandard?: number | null;
+  priceSales?: number | null;
+  salesPoint?: number | null;
+  reviewRank?: number | null;
 };
 
-type UsedTier = { count: number; minPrice: number; link: string };
-
 type AladinDetail = {
+  itemId: string;
+  isbn13: string;
+  isbn: string;
   title: string;
   subTitle: string;
   originalTitle: string;
   author: string;
   publisher: string;
   pubDate: string;
-  isbn13: string;
-  isbn: string;
   categoryName: string;
   description: string;
   priceStandard: number | null;
   priceSales: number | null;
-  mileage: number | null;
+  salesPoint: number | null;
   reviewRank: number | null;
+  reviewCount: number | null;
   page: number | null;
   packing: string;
   cover: string;
   link: string;
-  usedAladin: UsedTier | null;
-  usedUser: UsedTier | null;
-  usedSpace: UsedTier | null;
 };
 
 const aladinLabels: Record<string, string> = {
@@ -132,10 +135,6 @@ function won(value: number | null) {
   return value ? `${value.toLocaleString()}원` : "—";
 }
 
-function usedTierText(tier: UsedTier | null) {
-  return tier ? `${tier.count}부 · ${tier.minPrice.toLocaleString()}원부터` : "없음";
-}
-
 function detailRows(d: AladinDetail): Array<[string, string]> {
   const rows: Array<[string, string]> = [
     ["저자", d.author],
@@ -143,15 +142,15 @@ function detailRows(d: AladinDetail): Array<[string, string]> {
     ["출간일", d.pubDate],
     ["ISBN13", d.isbn13],
     ["정가", won(d.priceStandard)],
-    ["판매가", d.priceSales ? `${d.priceSales.toLocaleString()}원${d.mileage ? ` (마일리지 ${d.mileage.toLocaleString()})` : ""}` : "—"],
+    ["판매가", won(d.priceSales)],
   ];
   if (d.page) rows.push(["쪽수", `${d.page}쪽`]);
   if (d.packing) rows.push(["사양", d.packing]);
   if (d.originalTitle) rows.push(["원제", d.originalTitle]);
-  if (d.reviewRank != null) rows.push(["알라딘 평점", `${(d.reviewRank / 2).toFixed(1)} / 5`]);
-  rows.push(["알라딘 중고", usedTierText(d.usedAladin)]);
-  rows.push(["회원 중고", usedTierText(d.usedUser)]);
-  rows.push(["중고매장", usedTierText(d.usedSpace)]);
+  if (d.reviewRank != null) {
+    rows.push(["알라딘 평점", `${(d.reviewRank / 2).toFixed(1)} / 5${d.reviewCount ? ` (${d.reviewCount.toLocaleString()}명)` : ""}`]);
+  }
+  if (d.salesPoint) rows.push(["판매지수", d.salesPoint.toLocaleString()]);
   return rows.filter(([, value]) => value && value.trim());
 }
 
@@ -331,9 +330,8 @@ export function BookScout() {
     setMessage("");
     try {
       const response = await fetch(`/api/aladin/search?q=${encodeURIComponent(query.trim())}`);
-      const data = (await response.json()) as { books?: SearchBook[]; error?: string; code?: string };
+      const data = (await response.json()) as { books?: SearchBook[]; error?: string };
       if (!response.ok) {
-        if (data.code === "ALADIN_KEY_MISSING") setShowSetup(true);
         throw new Error(data.error);
       }
       setResults(data.books ?? []);
@@ -405,7 +403,7 @@ export function BookScout() {
     setDetailError("");
     setDetailLoading(true);
     try {
-      const response = await fetch(`/api/aladin/item?isbn=${book.isbn13}`);
+      const response = await fetch(`/api/aladin/item?itemId=${encodeURIComponent(book.aladinItemId ?? "")}&isbn=${book.isbn13}`);
       const data = (await response.json()) as { detail?: AladinDetail; error?: string };
       if (!response.ok || !data.detail) throw new Error(data.error ?? "정보를 불러오지 못했습니다.");
       setDetail(data.detail);
@@ -477,13 +475,12 @@ export function BookScout() {
       {message && <div className="toast" role="status"><span>i</span>{message}<button onClick={() => setMessage("")} aria-label="알림 닫기">×</button></div>}
 
       {showSetup && (
-        <aside className="setupPanel" aria-label="초기 설정 안내">
-          <button className="closeSetup" onClick={() => setShowSetup(false)} aria-label="설정 안내 닫기">×</button>
-          <p className="eyebrow">ONE-TIME SETUP</p>
-          <h2>알라딘 API 키 연결</h2>
-          <p>프로젝트의 <code>.dev.vars</code> 파일에 <code>ALADIN_TTB_KEY</code>를 넣으면 검색과 알라딘 재고 확인이 활성화됩니다.</p>
-          <a href="https://www.aladin.co.kr/ttb/wblog_manage.aspx" target="_blank" rel="noreferrer">TTB Key 발급 페이지 열기 ↗</a>
-          <div className="setupFacts"><span>중고 <b>알라딘</b></span><span>대출 <b>도서관</b></span><span>자동 확인 <b>매일 08:00</b></span></div>
+        <aside className="setupPanel" aria-label="연동 정보">
+          <button className="closeSetup" onClick={() => setShowSetup(false)} aria-label="연동 정보 닫기">×</button>
+          <p className="eyebrow">HOW IT WORKS</p>
+          <h2>연동 정보</h2>
+          <p>알라딘은 별도 API 키 없이 웹사이트 페이지를 읽어 검색·메타데이터·매장 재고를 확인합니다. 도서관은 보정도서관 검색 결과를 ISBN 우선으로 조회합니다.</p>
+          <div className="setupFacts"><span>중고 매장 <b>분당서현점</b></span><span>대출 <b>보정도서관</b></span><span>자동 확인 <b>매일 08:00</b></span></div>
         </aside>
       )}
 

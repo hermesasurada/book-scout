@@ -11,6 +11,7 @@ export const books = sqliteTable(
     publisher: text("publisher").notNull().default(""),
     cover: text("cover").notNull().default(""),
     aladinLink: text("aladin_link").notNull().default(""),
+    aladinItemId: text("aladin_item_id").notNull().default(""),
     pubDate: text("pub_date").notNull().default(""),
     category: text("category").notNull().default(""),
     priceSales: integer("price_sales"),

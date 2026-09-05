@@ -1,6 +1,12 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { books, checks } from "../../../db/schema";
+import { aladinItemIdFromLink, aladinProductLink, lookupAladinProduct } from "../../../lib/providers";
+
+const toInt = (value: unknown): number | null => {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : null;
+};
 
 export async function GET() {
   try {
@@ -14,6 +20,7 @@ export async function GET() {
         publisher: books.publisher,
         cover: books.cover,
         aladinLink: books.aladinLink,
+        aladinItemId: books.aladinItemId,
         pubDate: books.pubDate,
         category: books.category,
         priceSales: books.priceSales,
@@ -54,6 +61,7 @@ export async function POST(request: Request) {
           publisher: String(item.publisher ?? "").trim(),
           cover: String(item.cover ?? ""),
           aladinLink: String(item.aladinLink ?? ""),
+          aladinItemId: String(item.itemId ?? "") || aladinItemIdFromLink(String(item.aladinLink ?? "")),
           pubDate: String(item.pubDate ?? ""),
         }));
       const unique = [...new Map(valid.map((book) => [book.isbn13, book])).values()];
@@ -75,21 +83,32 @@ export async function POST(request: Request) {
       }, { status: 201 });
     }
 
-    const single = payload as Record<string, string>;
-    if (!/^\d{13}$/.test(single.isbn13 ?? "") || !single.title?.trim()) {
+    const single = payload as Record<string, unknown>;
+    const isbn13 = String(single.isbn13 ?? "");
+    const title = String(single.title ?? "").trim();
+    if (!/^\d{13}$/.test(isbn13) || !title) {
       return Response.json({ error: "올바른 도서 정보가 필요합니다." }, { status: 400 });
     }
+    // Search results carry the Aladin ItemId; pull the exact publish date,
+    // category and current prices from the product page while adding.
+    const itemId = String(single.itemId ?? "") || aladinItemIdFromLink(String(single.aladinLink ?? ""));
+    const product = itemId ? await lookupAladinProduct(itemId).catch(() => null) : null;
     const db = await getDb();
     const [book] = await db
       .insert(books)
       .values({
-        isbn13: single.isbn13,
-        title: single.title.trim(),
-        author: single.author?.trim() ?? "",
-        publisher: single.publisher?.trim() ?? "",
-        cover: single.cover ?? "",
-        aladinLink: single.aladinLink ?? "",
-        pubDate: single.pubDate ?? "",
+        isbn13,
+        title,
+        author: product?.author || String(single.author ?? "").trim(),
+        publisher: product?.publisher || String(single.publisher ?? "").trim(),
+        cover: product?.cover || String(single.cover ?? ""),
+        aladinLink: itemId ? aladinProductLink(itemId) : String(single.aladinLink ?? ""),
+        aladinItemId: itemId,
+        pubDate: product?.pubDate || String(single.pubDate ?? ""),
+        category: product?.categoryName ?? "",
+        priceSales: product?.priceSales ?? toInt(single.priceSales),
+        salesPoint: product?.salesPoint ?? toInt(single.salesPoint),
+        reviewRank: product?.reviewRank ?? toInt(single.reviewRank),
       })
       .onConflictDoNothing({ target: books.isbn13 })
       .returning();

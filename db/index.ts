@@ -46,6 +46,7 @@ export async function getDb() {
       Promise.all(
         [
           "ALTER TABLE books ADD COLUMN pub_date TEXT NOT NULL DEFAULT ''",
+          "ALTER TABLE books ADD COLUMN aladin_item_id TEXT NOT NULL DEFAULT ''",
           "ALTER TABLE books ADD COLUMN category TEXT NOT NULL DEFAULT ''",
           "ALTER TABLE books ADD COLUMN price_sales INTEGER",
           "ALTER TABLE books ADD COLUMN sales_point INTEGER",

@@ -1,0 +1,1 @@
+ALTER TABLE `books` ADD `aladin_item_id` text DEFAULT '' NOT NULL;

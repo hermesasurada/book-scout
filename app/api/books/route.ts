@@ -84,15 +84,15 @@ export async function POST(request: Request) {
     }
 
     const single = payload as Record<string, unknown>;
-    const isbn13 = String(single.isbn13 ?? "");
     const title = String(single.title ?? "").trim();
-    if (!/^\d{13}$/.test(isbn13) || !title) {
-      return Response.json({ error: "올바른 도서 정보가 필요합니다." }, { status: 400 });
-    }
-    // Search results carry the Aladin ItemId; pull the exact publish date,
+    // Search results carry the Aladin ItemId; pull the exact ISBN, publish date,
     // category and current prices from the product page while adding.
     const itemId = String(single.itemId ?? "") || aladinItemIdFromLink(String(single.aladinLink ?? ""));
     const product = itemId ? await lookupAladinProduct(itemId).catch(() => null) : null;
+    const isbn13 = product?.isbn13 || String(single.isbn13 ?? "");
+    if (!/^\d{13}$/.test(isbn13) || !title) {
+      return Response.json({ error: "올바른 도서 정보가 필요합니다." }, { status: 400 });
+    }
     const db = await getDb();
     const [book] = await db
       .insert(books)

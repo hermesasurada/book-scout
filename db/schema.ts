@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const books = sqliteTable(
   "books",
@@ -16,7 +16,8 @@ export const books = sqliteTable(
     category: text("category").notNull().default(""),
     priceSales: integer("price_sales"),
     salesPoint: integer("sales_point"),
-    reviewRank: integer("review_rank"),
+    // Aladin's 10-point average carries one decimal (9.8), so this is a real.
+    reviewRank: real("review_rank"),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => [uniqueIndex("books_isbn13_unique").on(table.isbn13)],

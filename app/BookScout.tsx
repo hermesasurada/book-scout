@@ -60,6 +60,7 @@ type AladinDetail = {
   priceSales: number | null;
   salesPoint: number | null;
   reviewRank: number | null;
+  commentCount: number | null;
   reviewCount: number | null;
   page: number | null;
   packing: string;
@@ -148,7 +149,13 @@ function detailRows(d: AladinDetail): Array<[string, string]> {
   if (d.packing) rows.push(["사양", d.packing]);
   if (d.originalTitle) rows.push(["원제", d.originalTitle]);
   if (d.reviewRank != null) {
-    rows.push(["알라딘 평점", `${(d.reviewRank / 2).toFixed(1)} / 5${d.reviewCount ? ` (${d.reviewCount.toLocaleString()}명)` : ""}`]);
+    const counts = [
+      d.commentCount ? `100자평 ${d.commentCount.toLocaleString()}편` : "",
+      d.reviewCount ? `리뷰 ${d.reviewCount.toLocaleString()}편` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+    rows.push(["알라딘 평점", `${d.reviewRank.toFixed(1)} / 10${counts ? ` · ${counts}` : ""}`]);
   }
   if (d.salesPoint) rows.push(["판매지수", d.salesPoint.toLocaleString()]);
   return rows.filter(([, value]) => value && value.trim());
@@ -574,7 +581,7 @@ export function BookScout() {
                     <p>{book.author}{book.publisher ? ` · ${book.publisher}` : ""}{book.pubDate ? ` · ${book.pubDate.slice(0, 7)}` : ""}</p>
                     <p className="bookMetrics">
                       {bookCategory(book) ? <span className="cat">{bookCategory(book)}</span> : null}
-                      {book.reviewRank ? <span>★ {(book.reviewRank / 2).toFixed(1)}</span> : null}
+                      {book.reviewRank ? <span>★ {book.reviewRank.toFixed(1)}</span> : null}
                       {book.salesPoint ? <span>판매지수 {book.salesPoint.toLocaleString()}</span> : null}
                     </p>
                   </div>

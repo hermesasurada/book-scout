@@ -57,7 +57,11 @@ export type AladinProduct = {
   priceStandard: number | null;
   priceSales: number | null;
   salesPoint: number | null;
+  /** Aladin's 10-point average, e.g. 9.8. */
   reviewRank: number | null;
+  /** 100자평 편수 */
+  commentCount: number | null;
+  /** 리뷰 편수 */
   reviewCount: number | null;
   page: number | null;
   packing: string;
@@ -153,8 +157,11 @@ export function parseAladinSearch(html: string): AladinSearchBook[] {
     const block = raw.slice(0, raw.indexOf('class="ss_book_box"') > 0 ? raw.indexOf('class="ss_book_box"') : undefined);
     const itemId = block.match(/^[^>]*itemId="(\d+)"/i)?.[1] ?? "";
     const isbnRaw = block.match(/AddBook=(\d{10,13})/)?.[1] ?? block.match(/[?&]ISBN=(\d{10,13})/)?.[1] ?? "";
+    // Some listings (out-of-print, boxed sets) carry no cart/preview link, so
+    // the ISBN is not in the box. Keep them — the product page settles the ISBN
+    // when the book is actually added.
     const isbn13 = isbn10to13(isbnRaw);
-    if (!itemId || !isbn13) continue;
+    if (!itemId) continue;
     const main = decodeHtml(block.match(/class="bo3"[^>]*>([^<]*)</)?.[1] ?? "").trim();
     const sub = decodeHtml(block.match(/class="ss_f_g2"[^>]*>([^<]*)</)?.[1] ?? "").trim();
     const title = cleanAladinTitle(sub ? `${main} ${sub}`.replace(/\s+/g, " ") : main);
@@ -189,7 +196,7 @@ export function parseAladinSearch(html: string): AladinSearchBook[] {
       priceStandard,
       priceSales,
       salesPoint,
-      reviewRank: rating ? Math.round(Number(rating)) : null,
+      reviewRank: rating && Number(rating) > 0 ? Number(rating) : null,
     });
   }
   return results;
@@ -247,8 +254,14 @@ export function parseAladinProduct(html: string, itemId: string): AladinProduct 
   const categoryRaw = text.match(/(국내도서(?:\s*>\s*[^>|]+?)+)\s*접기/)?.[1] ?? "";
   const categoryName = categoryRaw.split(">").map((s) => s.trim()).filter(Boolean).join(">");
 
-  const ratingValue = html.match(/"ratingValue"\s*:\s*"?([\d.]+)"?/)?.[1] ?? metaContent(html, "books:rating:value");
-  const reviewCount = html.match(/"reviewCount"\s*:\s*"?(\d+)"?/)?.[1];
+  // Aladin exposes the exact 10-point average (e.g. "9.8"); the review header
+  // carries the two counts as "100자평(11) … 리뷰(32)".
+  const ratingValue = metaContent(html, "books:rating:value") || html.match(/"ratingValue"\s*:\s*"?([\d.]+)"?/)?.[1] || "";
+  const rating = Number(ratingValue);
+  const countsAt = html.indexOf("100자평(");
+  const counts = countsAt >= 0 ? html.slice(countsAt, countsAt + 400) : "";
+  const commentCount = toNumber(counts.match(/100자평\s*\(\s*([\d,]+)\s*\)/)?.[1]);
+  const reviewCount = toNumber(counts.match(/리뷰\s*\(\s*([\d,]+)\s*\)/)?.[1]);
   const page = toNumber(text.match(/(\d+)쪽/)?.[1]);
   const size = text.match(/(\d+)\s*\*\s*(\d+)\s*mm/);
   const weight = text.match(/(\d+)\s*g\b/)?.[1];
@@ -269,8 +282,9 @@ export function parseAladinProduct(html: string, itemId: string): AladinProduct 
     priceStandard: toNumber(text.match(/정가\s*[:：]?\s*([\d,]+)\s*원/)?.[1]),
     priceSales: toNumber(metaContent(html, "og:price")),
     salesPoint: toNumber(text.match(/Sales\s*Point\s*[:：]?\s*\|?\s*([\d,]+)/i)?.[1]),
-    reviewRank: ratingValue ? Math.round(Number(ratingValue)) : null,
-    reviewCount: reviewCount ? Number(reviewCount) : null,
+    reviewRank: Number.isFinite(rating) && rating > 0 ? rating : null,
+    commentCount,
+    reviewCount,
     page,
     packing,
     cover: metaContent(html, "og:image"),

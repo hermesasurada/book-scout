@@ -17,6 +17,8 @@ type Book = {
   priceSales?: number | null;
   salesPoint?: number | null;
   reviewRank?: number | null;
+  commentCount?: number | null;
+  reviewCount?: number | null;
   checkedAt?: string | null;
   aladinStatus?: string | null;
   aladinStore?: string | null;
@@ -581,7 +583,7 @@ export function BookScout() {
                     <p>{book.author}{book.publisher ? ` · ${book.publisher}` : ""}{book.pubDate ? ` · ${book.pubDate.slice(0, 7)}` : ""}</p>
                     <p className="bookMetrics">
                       {bookCategory(book) ? <span className="cat">{bookCategory(book)}</span> : null}
-                      {book.reviewRank ? <span>★ {book.reviewRank.toFixed(1)}</span> : null}
+                      {book.reviewRank ? <span title="100자평, 리뷰 편수">★ {book.reviewRank.toFixed(1)}{book.commentCount != null || book.reviewCount != null ? ` (${book.commentCount ?? 0},${book.reviewCount ?? 0})` : ""}</span> : null}
                       {book.salesPoint ? <span>판매지수 {book.salesPoint.toLocaleString()}</span> : null}
                     </p>
                   </div>

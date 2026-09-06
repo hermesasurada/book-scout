@@ -111,6 +111,8 @@ export async function POST(request: Request) {
         set.priceSales = product.priceSales;
         set.salesPoint = product.salesPoint;
         set.reviewRank = product.reviewRank;
+        set.commentCount = product.commentCount;
+        set.reviewCount = product.reviewCount;
       }
     }
     await db.update(books).set(set).where(eq(books.id, book.id));

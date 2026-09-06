@@ -18,6 +18,10 @@ export const books = sqliteTable(
     salesPoint: integer("sales_point"),
     // Aladin's 10-point average carries one decimal (9.8), so this is a real.
     reviewRank: real("review_rank"),
+    /** 100자평 편수 */
+    commentCount: integer("comment_count"),
+    /** 리뷰 편수 */
+    reviewCount: integer("review_count"),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => [uniqueIndex("books_isbn13_unique").on(table.isbn13)],

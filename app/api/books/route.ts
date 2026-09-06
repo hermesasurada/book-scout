@@ -26,6 +26,8 @@ export async function GET() {
         priceSales: books.priceSales,
         salesPoint: books.salesPoint,
         reviewRank: books.reviewRank,
+        commentCount: books.commentCount,
+        reviewCount: books.reviewCount,
         createdAt: books.createdAt,
         checkedAt: checks.checkedAt,
         aladinStatus: checks.aladinStatus,
@@ -109,6 +111,8 @@ export async function POST(request: Request) {
         priceSales: product?.priceSales ?? toInt(single.priceSales),
         salesPoint: product?.salesPoint ?? toInt(single.salesPoint),
         reviewRank: product?.reviewRank ?? toInt(single.reviewRank),
+        commentCount: product?.commentCount ?? null,
+        reviewCount: product?.reviewCount ?? null,
       })
       .onConflictDoNothing({ target: books.isbn13 })
       .returning();

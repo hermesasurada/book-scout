@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- cover URLs are supplied dynamically by Aladin */
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 type Book = {
   id: number;
@@ -23,6 +23,7 @@ type Book = {
   aladinStatus?: string | null;
   aladinStore?: string | null;
   aladinPrice?: number | null;
+  aladinCount?: number | null;
   checkAladinLink?: string | null;
   libraryStatus?: string | null;
   libraryDueDate?: string | null;
@@ -172,6 +173,9 @@ type SortKey =
   | "pubAsc"
   | "salesDesc"
   | "ratingDesc"
+  | "reviewsDesc"
+  | "priceAsc"
+  | "stockDesc"
   | "discountDesc"
   | "dueAsc";
 
@@ -181,6 +185,9 @@ const sortLabels: Record<SortKey, string> = {
   pubAsc: "출간일 오래된순",
   salesDesc: "판매지수 높은순",
   ratingDesc: "평점 높은순",
+  reviewsDesc: "리뷰건수(합산) 많은순",
+  priceAsc: "매장 가격 낮은순",
+  stockDesc: "알라딘 재고 권수 많은순",
   discountDesc: "매장 할인율 높은순",
   dueAsc: "도서관 반납일 빠른순",
 };
@@ -237,24 +244,27 @@ export function BookScout() {
     }
   }, []);
 
-  // Show the cached list instantly on entry (no loading flash), then quietly
-  // revalidate in the background so the data stays current.
-  useEffect(() => {
+  // Restore before paint; returning to the page must not replace the list.
+  // Explicit refresh, additions and checks fetch authoritative server data.
+  useLayoutEffect(() => {
     let cached: Book[] | null = null;
     try {
       const raw = window.localStorage.getItem(CACHE_KEY);
-      if (raw) cached = JSON.parse(raw) as Book[];
+      if (raw) {
+        const parsed: unknown = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.every((book) => book && typeof book.id === "number" && typeof book.title === "string")) cached = parsed;
+      }
     } catch {
       // ignore malformed cache
     }
-    const timer = window.setTimeout(() => {
-      if (cached) {
-        setBooks(cached);
-        setLoading(false);
-      }
+    if (cached) {
+      // Restore external browser storage before the first paint to avoid a loading flash.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setBooks(cached);
+      setLoading(false);
+    } else {
       void loadBooks();
-    }, 0);
-    return () => window.clearTimeout(timer);
+    }
   }, [loadBooks]);
 
   useEffect(() => {
@@ -298,16 +308,16 @@ export function BookScout() {
       }
       return true;
     });
-    if (sort === "added") return matched;
+    if (sort === "added" || (sort === "stockDesc" && filter !== "aladin")) return matched;
 
     // In every mode, entries missing the sort value sink to the bottom.
-    const byNum = (value: (book: Book) => number | null) => (a: Book, b: Book) => {
+    const byNum = (value: (book: Book) => number | null, asc = false) => (a: Book, b: Book) => {
       const va = value(a);
       const vb = value(b);
       if (va == null && vb == null) return 0;
       if (va == null) return 1;
       if (vb == null) return -1;
-      return vb - va;
+      return asc ? va - vb : vb - va;
     };
     const byStr = (value: (book: Book) => string, asc: boolean) => (a: Book, b: Book) => {
       const va = value(a);
@@ -322,6 +332,9 @@ export function BookScout() {
       pubAsc: byStr((book) => book.pubDate || "", true),
       salesDesc: byNum((book) => book.salesPoint ?? null),
       ratingDesc: byNum((book) => book.reviewRank ?? null),
+      reviewsDesc: byNum((book) => book.commentCount == null && book.reviewCount == null ? null : (book.commentCount ?? 0) + (book.reviewCount ?? 0)),
+      priceAsc: byNum((book) => book.aladinStatus === "in_stock" && book.aladinPrice && book.aladinPrice > 0 ? book.aladinPrice : null, true),
+      stockDesc: byNum((book) => book.aladinCount ?? null),
       discountDesc: byNum((book) => usedDiscount(book)),
       dueAsc: byStr((book) => book.libraryDueDate || "", true),
     };
@@ -425,6 +438,17 @@ export function BookScout() {
 
   const latest = books.find((book) => book.checkedAt)?.checkedAt;
 
+  function changeFilter(next: typeof filter) {
+    setFilter(next);
+    setPage(1);
+    if (next !== "aladin" && sort === "stockDesc") setSort("added");
+  }
+
+  function aladinStatusLabel(book: Book) {
+    if (book.aladinStatus === "in_stock" && book.aladinCount != null) return `재고 있음(${book.aladinCount.toLocaleString()}권)`;
+    return aladinLabels[book.aladinStatus ?? ""] || "확인 전";
+  }
+
   return (
     <main>
       <header className="topbar">
@@ -497,6 +521,7 @@ export function BookScout() {
         <div className="sectionHead">
           <div><span className="sectionNumber">02</span><h2 id="books-title">나의 관심도서</h2></div>
           <div className="sectionControls">
+            <button className="navButton" onClick={() => void loadBooks()}>목록 새로고침</button>
             <div className="listSearch">
               <span aria-hidden="true">⌕</span>
               <label className="srOnly" htmlFor="list-search">관심도서 검색</label>
@@ -509,10 +534,10 @@ export function BookScout() {
               {listQuery && <button onClick={() => { setListQuery(""); setPage(1); }} aria-label="검색어 지우기">×</button>}
             </div>
             <div className="filters" role="group" aria-label="관심도서 필터">
-              <button className={filter === "all" ? "selected" : ""} onClick={() => { setFilter("all"); setPage(1); }}>전체 {counts.total}</button>
-              <button className={filter === "aladin" ? "selected coral" : ""} onClick={() => { setFilter("aladin"); setPage(1); }}>알라딘 재고 {counts.aladin}</button>
-              <button className={filter === "library" ? "selected good" : ""} onClick={() => { setFilter("library"); setPage(1); }}>대출가능 {counts.library}</button>
-              <button className={filter === "library_loaned" ? "selected warn" : ""} onClick={() => { setFilter("library_loaned"); setPage(1); }}>대출중 {counts.libraryLoaned}</button>
+              <button className={filter === "all" ? "selected" : ""} onClick={() => changeFilter("all")}>전체 {counts.total}</button>
+              <button className={filter === "aladin" ? "selected coral" : ""} onClick={() => changeFilter("aladin")}>알라딘 재고 있음 {counts.aladin}</button>
+              <button className={filter === "library" ? "selected good" : ""} onClick={() => changeFilter("library")}>대출가능 {counts.library}</button>
+              <button className={filter === "library_loaned" ? "selected warn" : ""} onClick={() => changeFilter("library_loaned")}>대출중 {counts.libraryLoaned}</button>
             </div>
             {categories.length > 0 && (
               <label className="sortSelect">
@@ -528,7 +553,7 @@ export function BookScout() {
             <label className="sortSelect">
               <span className="srOnly">정렬 기준</span>
               <select value={sort} onChange={(event) => { setSort(event.target.value as SortKey); setPage(1); }}>
-                {(Object.keys(sortLabels) as SortKey[]).map((key) => (
+                {(Object.keys(sortLabels) as SortKey[]).filter((key) => key !== "stockDesc" || filter === "aladin").map((key) => (
                   <option key={key} value={key}>{sortLabels[key]}</option>
                 ))}
               </select>
@@ -588,7 +613,7 @@ export function BookScout() {
                     </p>
                   </div>
                   <div className="availability">
-                    <div className="sourceRow"><small>알라딘</small>{book.aladinStatus === "in_stock" && (book.checkAladinLink || book.aladinLink) ? <a className="statusLink" href={cleanUrl(book.checkAladinLink || book.aladinLink)} target="_blank" rel="noreferrer"><strong className={statusTone(book.aladinStatus)}>{aladinLabels.in_stock} ↗</strong></a> : <strong className={statusTone(book.aladinStatus)}>{aladinLabels[book.aladinStatus ?? ""] || "확인 전"}</strong>}{book.aladinPrice ? <em>{book.aladinPrice.toLocaleString()}원부터{usedDiscount(book) != null ? <b className="disc"> · -{usedDiscount(book)}%</b> : null}</em> : null}</div>
+                    <div className="sourceRow"><small>알라딘</small>{book.aladinStatus === "in_stock" && (book.checkAladinLink || book.aladinLink) ? <a className="statusLink" href={cleanUrl(book.checkAladinLink || book.aladinLink)} target="_blank" rel="noreferrer"><strong className={statusTone(book.aladinStatus)}>{aladinStatusLabel(book)} ↗</strong></a> : <strong className={statusTone(book.aladinStatus)}>{aladinStatusLabel(book)}</strong>}{book.aladinPrice ? <em>{book.aladinPrice.toLocaleString()}원부터{usedDiscount(book) != null ? <b className="disc"> · -{usedDiscount(book)}%</b> : null}</em> : null}</div>
                     <div className="sourceRow"><small>도서관</small>{book.libraryLink || book.libraryStatus === "available" ? <a className="statusLink" href={book.libraryLink || libraryUrl(book.title)} target="_blank" rel="noreferrer"><strong className={statusTone(book.libraryStatus)}>{libraryLabels[book.libraryStatus ?? ""] || "확인 전"} ↗</strong></a> : <strong className={statusTone(book.libraryStatus)}>{libraryLabels[book.libraryStatus ?? ""] || "확인 전"}</strong>}{book.libraryDueDate ? <em>{book.libraryDueDate} 반납</em> : book.libraryLocation ? <em>{book.libraryLocation.replace("[보정]", "")}</em> : null}</div>
                   </div>
                 </div>

@@ -70,6 +70,7 @@ export type AladinProduct = {
 };
 
 export type AladinCheck = {
+  count: number | null;
   status: "in_stock" | "out_of_stock" | "unconfigured" | "error";
   store: string;
   price: number | null;
@@ -323,17 +324,18 @@ export async function checkAladinStore(
 ): Promise<AladinCheck> {
   const itemId = book.aladinItemId || aladinItemIdFromLink(book.aladinLink);
   if (!itemId) {
-    return { status: "error", store: storeName, price: null, link: "", error: "알라딘 ItemId 없음" };
+    return { status: "error", count: null, store: storeName, price: null, link: "", error: "알라딘 ItemId 없음" };
   }
   const storeLink = `${ALADIN_WEB}/usedstore/wproduct.aspx?ItemId=${itemId}&OffCode=${encodeURIComponent(storeCode)}`;
   try {
     const { count, price } = parseStoreStock(await fetchWeb(storeLink));
-    if (count <= 0) return { status: "out_of_stock", store: storeName, price: null, link: storeLink };
-    return { status: "in_stock", store: storeName, price, link: storeLink };
+    if (count <= 0) return { status: "out_of_stock", count: 0, store: storeName, price: null, link: storeLink };
+    return { status: "in_stock", count, store: storeName, price, link: storeLink };
   } catch (error) {
     return {
       status: "error",
       store: storeName,
+      count: null,
       price: null,
       link: storeLink,
       error: error instanceof Error ? error.message : "알라딘 매장 조회 오류",

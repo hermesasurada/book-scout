@@ -148,6 +148,7 @@ export async function POST(request: Request) {
         aladinStatus: aladin.status,
         aladinStore: aladin.store,
         aladinPrice: aladin.price,
+        aladinCount: aladin.count,
         aladinLink: aladin.link,
         libraryStatus: library.status,
         libraryDueDate: library.dueDate,

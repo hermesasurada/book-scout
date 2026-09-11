@@ -54,6 +54,7 @@ export async function getDb() {
           "ALTER TABLE books ADD COLUMN comment_count INTEGER",
           "ALTER TABLE books ADD COLUMN review_count INTEGER",
           "ALTER TABLE checks ADD COLUMN library_link TEXT NOT NULL DEFAULT ''",
+          "ALTER TABLE checks ADD COLUMN aladin_count INTEGER",
         ].map((statement) => env.DB.prepare(statement).run().catch(() => undefined)),
       ),
     )

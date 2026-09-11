@@ -33,6 +33,7 @@ export async function GET() {
         aladinStatus: checks.aladinStatus,
         aladinStore: checks.aladinStore,
         aladinPrice: checks.aladinPrice,
+        aladinCount: checks.aladinCount,
         checkAladinLink: checks.aladinLink,
         libraryStatus: checks.libraryStatus,
         libraryDueDate: checks.libraryDueDate,

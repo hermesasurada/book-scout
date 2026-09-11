@@ -36,6 +36,7 @@ export const checks = sqliteTable(
     aladinStatus: text("aladin_status").notNull(),
     aladinStore: text("aladin_store").notNull().default(""),
     aladinPrice: integer("aladin_price"),
+    aladinCount: integer("aladin_count"),
     aladinLink: text("aladin_link").notNull().default(""),
     libraryStatus: text("library_status").notNull(),
     libraryDueDate: text("library_due_date").notNull().default(""),

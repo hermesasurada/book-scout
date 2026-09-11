@@ -175,7 +175,7 @@ type SortKey =
   | "ratingDesc"
   | "reviewsDesc"
   | "priceAsc"
-  | "stockDesc"
+  | "stockAsc"
   | "discountDesc"
   | "dueAsc";
 
@@ -187,7 +187,7 @@ const sortLabels: Record<SortKey, string> = {
   ratingDesc: "평점 높은순",
   reviewsDesc: "리뷰건수(합산) 많은순",
   priceAsc: "매장 가격 낮은순",
-  stockDesc: "알라딘 재고 권수 많은순",
+  stockAsc: "알라딘 재고 권수 적은순",
   discountDesc: "매장 할인율 높은순",
   dueAsc: "도서관 반납일 빠른순",
 };
@@ -308,7 +308,7 @@ export function BookScout() {
       }
       return true;
     });
-    if (sort === "added" || (sort === "stockDesc" && filter !== "aladin")) return matched;
+    if (sort === "added" || (sort === "stockAsc" && filter !== "aladin")) return matched;
 
     // In every mode, entries missing the sort value sink to the bottom.
     const byNum = (value: (book: Book) => number | null, asc = false) => (a: Book, b: Book) => {
@@ -334,7 +334,7 @@ export function BookScout() {
       ratingDesc: byNum((book) => book.reviewRank ?? null),
       reviewsDesc: byNum((book) => book.commentCount == null && book.reviewCount == null ? null : (book.commentCount ?? 0) + (book.reviewCount ?? 0)),
       priceAsc: byNum((book) => book.aladinStatus === "in_stock" && book.aladinPrice && book.aladinPrice > 0 ? book.aladinPrice : null, true),
-      stockDesc: byNum((book) => book.aladinCount ?? null),
+      stockAsc: byNum((book) => book.aladinCount ?? null, true),
       discountDesc: byNum((book) => usedDiscount(book)),
       dueAsc: byStr((book) => book.libraryDueDate || "", true),
     };
@@ -441,7 +441,7 @@ export function BookScout() {
   function changeFilter(next: typeof filter) {
     setFilter(next);
     setPage(1);
-    if (next !== "aladin" && sort === "stockDesc") setSort("added");
+    if (next !== "aladin" && sort === "stockAsc") setSort("added");
   }
 
   function aladinStatusLabel(book: Book) {
@@ -553,7 +553,7 @@ export function BookScout() {
             <label className="sortSelect">
               <span className="srOnly">정렬 기준</span>
               <select value={sort} onChange={(event) => { setSort(event.target.value as SortKey); setPage(1); }}>
-                {(Object.keys(sortLabels) as SortKey[]).filter((key) => key !== "stockDesc" || filter === "aladin").map((key) => (
+                {(Object.keys(sortLabels) as SortKey[]).filter((key) => key !== "stockAsc" || filter === "aladin").map((key) => (
                   <option key={key} value={key}>{sortLabels[key]}</option>
                 ))}
               </select>

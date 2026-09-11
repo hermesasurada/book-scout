@@ -165,7 +165,12 @@ function detailRows(d: AladinDetail): Array<[string, string]> {
 }
 
 const PAGE_SIZE = 20;
-const CACHE_KEY = "bookscout:books";
+// Bump the version whenever the Book shape changes: the page no longer
+// revalidates on entry, so an old-shape cache would otherwise stick around
+// until the reader hits 목록 새로고침.
+const CACHE_VERSION = 2;
+const CACHE_KEY = `bookscout:books:v${CACHE_VERSION}`;
+const STALE_CACHE_KEYS = ["bookscout:books", ...Array.from({ length: CACHE_VERSION - 1 }, (_, i) => `bookscout:books:v${i + 1}`)];
 
 type SortKey =
   | "added"
@@ -249,6 +254,7 @@ export function BookScout() {
   useLayoutEffect(() => {
     let cached: Book[] | null = null;
     try {
+      for (const key of STALE_CACHE_KEYS) window.localStorage.removeItem(key);
       const raw = window.localStorage.getItem(CACHE_KEY);
       if (raw) {
         const parsed: unknown = JSON.parse(raw);

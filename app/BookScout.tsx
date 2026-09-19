@@ -165,9 +165,8 @@ function detailRows(d: AladinDetail): Array<[string, string]> {
 }
 
 const PAGE_SIZE = 20;
-// Bump the version whenever the Book shape changes: the page no longer
-// revalidates on entry, so an old-shape cache would otherwise stick around
-// until the reader hits 목록 새로고침.
+// Bump the version whenever the Book shape changes, so readers are not served
+// an old-shape cache for the instant before revalidation lands.
 const CACHE_VERSION = 2;
 const CACHE_KEY = `bookscout:books:v${CACHE_VERSION}`;
 const STALE_CACHE_KEYS = ["bookscout:books", ...Array.from({ length: CACHE_VERSION - 1 }, (_, i) => `bookscout:books:v${i + 1}`)];
@@ -230,20 +229,26 @@ export function BookScout() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
 
-  const loadBooks = useCallback(async () => {
+  // `background` is the revalidation that runs on entry: it must not report
+  // failures (the reader still has the cached list in front of them) and must
+  // not disturb the view unless the server actually has something new.
+  const loadBooks = useCallback(async (background = false) => {
     try {
       const response = await fetch("/api/books", { cache: "no-store" });
       const data = (await response.json()) as { books?: Book[]; error?: string };
       if (!response.ok) throw new Error(data.error);
       const loaded = data.books ?? [];
-      setBooks(loaded);
+      const serialized = JSON.stringify(loaded);
+      // Swap the list only on a real change, so re-entering the page never
+      // reshuffles what is already current.
+      setBooks((current) => (JSON.stringify(current) === serialized ? current : loaded));
       try {
-        window.localStorage.setItem(CACHE_KEY, JSON.stringify(loaded));
+        window.localStorage.setItem(CACHE_KEY, serialized);
       } catch {
         // storage full or unavailable — non-fatal, just skip caching
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "목록을 불러오지 못했습니다.");
+      if (!background) setMessage(error instanceof Error ? error.message : "목록을 불러오지 못했습니다.");
     } finally {
       setLoading(false);
     }
@@ -268,9 +273,10 @@ export function BookScout() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setBooks(cached);
       setLoading(false);
-    } else {
-      void loadBooks();
     }
+    // Always revalidate — a book added on another device would otherwise stay
+    // invisible until the reader hits 목록 새로고침.
+    void loadBooks(cached !== null);
   }, [loadBooks]);
 
   useEffect(() => {

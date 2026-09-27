@@ -35,21 +35,7 @@ a { color: inherit; }
 .checkAll:disabled { opacity: .4; cursor: default; }
 
 /* ---------- Hero (compact stat band) ---------- */
-.hero { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px 40px; padding: 20px clamp(16px, 3vw, 34px); border-bottom: 1px solid var(--line); background: radial-gradient(circle at 92% 0%, rgba(233,96,67,.07), transparent 42%); }
-.heroCopy { min-width: 0; }
 .eyebrow { font: 600 9px/1 var(--font-sans), sans-serif; letter-spacing: .2em; color: var(--coral); margin: 0 0 7px; }
-.hero h1 { margin: 0; font: 500 clamp(24px, 3vw, 32px)/1.05 var(--font-serif), serif; letter-spacing: -.02em; }
-.hero h1 em { color: var(--coral); font-weight: 400; }
-.heroLead { margin: 7px 0 0; font-size: 12px; line-height: 1.5; color: var(--muted); }
-.summary { display: flex; align-items: stretch; gap: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--card); }
-.summary div { display: flex; flex-direction: column; gap: 2px; padding: 12px 20px; border-right: 1px solid var(--line-soft); justify-content: center; }
-.summary div:last-of-type { border-right: 0; }
-.summary strong { font: 500 26px var(--font-serif), serif; line-height: 1; }
-.summary span { font-size: 10px; color: var(--muted); }
-.summary .coral { color: var(--coral); }
-.summary .green { color: var(--green); }
-.summary p { margin: 0; padding: 0 20px; display: flex; align-items: center; font-size: 10px; color: var(--muted); border-left: 1px solid var(--line-soft); }
-.pulse { display: inline-block; width: 5px; height: 5px; background: var(--green); border-radius: 50%; margin-right: 6px; }
 
 /* ---------- Search ---------- */
 .searchSection { padding: 16px clamp(16px, 3vw, 34px); display: flex; align-items: center; gap: 18px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
@@ -194,9 +180,6 @@ footer .brandMark { width: 22px; height: 25px; font-size: 9px; }
 @media (max-width: 640px) {
   .topbar { gap: 10px; }
   .topbar nav { display: none; }
-  .hero { padding: 16px; }
-  .summary { width: 100%; }
-  .summary p { display: none; }
   .desktopOnly { display: none; }
   .searchSection > div:first-child { display: none; }
   .searchForm { width: 100%; }

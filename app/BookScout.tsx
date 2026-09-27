@@ -104,16 +104,6 @@ function libraryLoaned(status?: string | null) {
   return status === "loaned" || status === "other_loaned";
 }
 
-function relativeTime(value?: string | null) {
-  if (!value) return "아직 확인 전";
-  const date = new Date(value.endsWith("Z") ? value : `${value.replace(" ", "T")}Z`);
-  const minutes = Math.max(0, Math.floor((Date.now() - date.getTime()) / 60000));
-  if (minutes < 1) return "방금 전";
-  if (minutes < 60) return `${minutes}분 전`;
-  if (minutes < 1440) return `${Math.floor(minutes / 60)}시간 전`;
-  return `${Math.floor(minutes / 1440)}일 전`;
-}
-
 // Aladin HTML-escapes ampersands in its URLs. React writes href values
 // verbatim, so decode here too — rows stored before the provider fix still
 // carry "&amp;".
@@ -450,8 +440,6 @@ export function BookScout() {
     }
   }
 
-  const latest = books.find((book) => book.checkedAt)?.checkedAt;
-
   function changeFilter(next: typeof filter) {
     setFilter(next);
     setPage(1);
@@ -464,7 +452,7 @@ export function BookScout() {
   }
 
   return (
-    <main>
+    <main id="top">
       <header className="topbar">
         <a className="brand" href="#top" aria-label="책갈피 홈">
           <span className="brandMark">책</span>
@@ -478,20 +466,6 @@ export function BookScout() {
           <span aria-hidden="true">↻</span>{checking === "all" ? "확인 중…" : "전체 지금 확인"}
         </button>
       </header>
-
-      <section className="hero" id="top">
-        <div className="heroCopy">
-          <p className="eyebrow">MY READING WATCHLIST</p>
-          <h1>기다리던 책을 <em>놓치지 않도록.</em></h1>
-          <p className="heroLead">알라딘과 도서관을 매일 살펴 책을 만날 순간을 알려드려요.</p>
-        </div>
-        <div className="summary" aria-label="관심도서 요약">
-          <div><strong>{counts.total}</strong><span>관심도서</span></div>
-          <div><strong className="coral">{counts.aladin}</strong><span>중고 재고</span></div>
-          <div><strong className="green">{counts.library}</strong><span>대출 가능</span></div>
-          <p><span className="pulse" /> 마지막 확인 · {relativeTime(latest)}</p>
-        </div>
-      </section>
 
       <section className="searchSection" aria-labelledby="search-title">
         <div>

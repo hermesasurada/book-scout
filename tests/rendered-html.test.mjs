@@ -13,7 +13,7 @@ test("ships the Book Scout dashboard and removes the starter", async () => {
   assert.match(layout, /lang="ko"/);
   assert.match(layout, /책갈피 \| 관심도서 재고·대출 확인/);
   assert.match(page, /<BookScout \/>/);
-  assert.match(dashboard, /기다리던 책을/);
+  assert.doesNotMatch(dashboard, /MY READING WATCHLIST|기다리던 책을|className="summary"/);
   assert.match(dashboard, /알라딘에서 찾기/);
   assert.match(dashboard, /보정도서관/);
   assert.doesNotMatch(`${layout}\n${page}\n${dashboard}\n${packageJson}`, /codex-preview|react-loading-skeleton|SkeletonPreview/);

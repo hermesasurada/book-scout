@@ -173,27 +173,27 @@ const STALE_CACHE_KEYS = ["bookscout:books", ...Array.from({ length: CACHE_VERSI
 
 type SortKey =
   | "added"
-  | "pubDesc"
-  | "pubAsc"
-  | "salesDesc"
-  | "ratingDesc"
-  | "reviewsDesc"
-  | "priceAsc"
-  | "stockAsc"
-  | "discountDesc"
-  | "dueAsc";
+  | "published"
+  | "sales"
+  | "rating"
+  | "reviews"
+  | "price"
+  | "stock"
+  | "discount"
+  | "due";
+
+type SortDirection = "asc" | "desc";
 
 const sortLabels: Record<SortKey, string> = {
-  added: "추가한 순",
-  pubDesc: "출간일 최신순",
-  pubAsc: "출간일 오래된순",
-  salesDesc: "판매지수 높은순",
-  ratingDesc: "평점 높은순",
-  reviewsDesc: "리뷰건수(합산) 많은순",
-  priceAsc: "매장 가격 낮은순",
-  stockAsc: "알라딘 재고 권수 적은순",
-  discountDesc: "매장 할인율 높은순",
-  dueAsc: "도서관 반납일 빠른순",
+  added: "추가일",
+  published: "출간일",
+  sales: "판매지수",
+  rating: "평점",
+  reviews: "리뷰건수(합산)",
+  price: "매장 가격",
+  stock: "알라딘 재고 권수",
+  discount: "매장 할인율",
+  due: "도서관 반납일",
 };
 
 // Discount of the 분당서현점 offline-store used copy against the sale price.
@@ -222,6 +222,7 @@ export function BookScout() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [listQuery, setListQuery] = useState("");
   const [sort, setSort] = useState<SortKey>("added");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [page, setPage] = useState(1);
   const [showSetup, setShowSetup] = useState(false);
   const [detailBook, setDetailBook] = useState<Book | null>(null);
@@ -320,10 +321,12 @@ export function BookScout() {
       }
       return true;
     });
-    if (sort === "added" || (sort === "stockAsc" && filter !== "aladin")) return matched;
+    const asc = sortDirection === "asc";
+    // The API returns newest additions first, including the ID tie-breaker.
+    if (sort === "added" || (sort === "stock" && filter !== "aladin")) return asc ? [...matched].reverse() : matched;
 
     // In every mode, entries missing the sort value sink to the bottom.
-    const byNum = (value: (book: Book) => number | null, asc = false) => (a: Book, b: Book) => {
+    const byNum = (value: (book: Book) => number | null) => (a: Book, b: Book) => {
       const va = value(a);
       const vb = value(b);
       if (va == null && vb == null) return 0;
@@ -331,7 +334,7 @@ export function BookScout() {
       if (vb == null) return -1;
       return asc ? va - vb : vb - va;
     };
-    const byStr = (value: (book: Book) => string, asc: boolean) => (a: Book, b: Book) => {
+    const byStr = (value: (book: Book) => string) => (a: Book, b: Book) => {
       const va = value(a);
       const vb = value(b);
       if (!va && !vb) return 0;
@@ -340,18 +343,17 @@ export function BookScout() {
       return asc ? va.localeCompare(vb) : vb.localeCompare(va);
     };
     const comparators: Record<Exclude<SortKey, "added">, (a: Book, b: Book) => number> = {
-      pubDesc: byStr((book) => book.pubDate || "", false),
-      pubAsc: byStr((book) => book.pubDate || "", true),
-      salesDesc: byNum((book) => book.salesPoint ?? null),
-      ratingDesc: byNum((book) => book.reviewRank ?? null),
-      reviewsDesc: byNum((book) => book.commentCount == null && book.reviewCount == null ? null : (book.commentCount ?? 0) + (book.reviewCount ?? 0)),
-      priceAsc: byNum((book) => book.aladinStatus === "in_stock" && book.aladinPrice && book.aladinPrice > 0 ? book.aladinPrice : null, true),
-      stockAsc: byNum((book) => book.aladinCount ?? null, true),
-      discountDesc: byNum((book) => usedDiscount(book)),
-      dueAsc: byStr((book) => book.libraryDueDate || "", true),
+      published: byStr((book) => book.pubDate || ""),
+      sales: byNum((book) => book.salesPoint ?? null),
+      rating: byNum((book) => book.reviewRank ?? null),
+      reviews: byNum((book) => book.commentCount == null && book.reviewCount == null ? null : (book.commentCount ?? 0) + (book.reviewCount ?? 0)),
+      price: byNum((book) => book.aladinStatus === "in_stock" && book.aladinPrice && book.aladinPrice > 0 ? book.aladinPrice : null),
+      stock: byNum((book) => book.aladinCount ?? null),
+      discount: byNum((book) => usedDiscount(book)),
+      due: byStr((book) => book.libraryDueDate || ""),
     };
     return [...matched].sort(comparators[sort]);
-  }, [books, filter, categoryFilter, sort, listQuery]);
+  }, [books, filter, categoryFilter, sort, sortDirection, listQuery]);
 
   const pageCount = Math.max(1, Math.ceil(filteredBooks.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -453,7 +455,7 @@ export function BookScout() {
   function changeFilter(next: typeof filter) {
     setFilter(next);
     setPage(1);
-    if (next !== "aladin" && sort === "stockAsc") setSort("added");
+    if (next !== "aladin" && sort === "stock") setSort("added");
   }
 
   function aladinStatusLabel(book: Book) {
@@ -565,9 +567,16 @@ export function BookScout() {
             <label className="sortSelect">
               <span className="srOnly">정렬 기준</span>
               <select value={sort} onChange={(event) => { setSort(event.target.value as SortKey); setPage(1); }}>
-                {(Object.keys(sortLabels) as SortKey[]).filter((key) => key !== "stockAsc" || filter === "aladin").map((key) => (
+                {(Object.keys(sortLabels) as SortKey[]).filter((key) => key !== "stock" || filter === "aladin").map((key) => (
                   <option key={key} value={key}>{sortLabels[key]}</option>
                 ))}
+              </select>
+            </label>
+            <label className="sortSelect">
+              <span className="srOnly">정렬 방향</span>
+              <select value={sortDirection} onChange={(event) => { setSortDirection(event.target.value as SortDirection); setPage(1); }}>
+                <option value="asc">오름차순</option>
+                <option value="desc">내림차순</option>
               </select>
             </label>
           </div>

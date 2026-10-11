@@ -34,7 +34,6 @@ export async function POST(request: Request) {
       finishedAt: patch.finishedAt ?? (patch.status === "finished" ? today() : null),
       stoppedAt: patch.stoppedAt ?? null,
       round,
-      rating: patch.rating ?? null,
       review: patch.review ?? "",
       memo: patch.memo ?? "",
       currentPage: patch.currentPage ?? null,

@@ -14,7 +14,6 @@ export type ReadingView = {
   stoppedAt: string | null;
   datesUnknown: boolean;
   round: number;
-  rating: number | null;
   review: string;
   memo: string;
   currentPage: number | null;

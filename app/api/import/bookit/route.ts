@@ -18,7 +18,7 @@ type Summary = {
 };
 
 // Re-runnable import of a 북적북적 export. While both apps are used, 북적북적
-// owns status, dates and memo; ratings, reviews and notes added here are kept.
+// owns status, dates and memo; reviews and notes added here are kept.
 export async function POST(request: Request) {
   const text = await request.text();
   let records: BookitRecord[];
@@ -133,13 +133,13 @@ export async function POST(request: Request) {
   // them here too unless they carry something added in this app.
   const seen = new Set(records.flatMap((record) => [record.key, ...record.rereads.map((reread) => `${record.key}#${reread.round}`)]));
   const imported = await db
-    .select({ id: readings.id, sourceKey: readings.sourceKey, rating: readings.rating, review: readings.review })
+    .select({ id: readings.id, sourceKey: readings.sourceKey, review: readings.review })
     .from(readings)
     .where(eq(readings.source, "bookit"));
   for (const row of imported) {
     if (row.sourceKey && seen.has(row.sourceKey)) continue;
     const [note] = await db.select({ id: readingNotes.id }).from(readingNotes).where(eq(readingNotes.readingId, row.id)).limit(1);
-    if (row.rating != null || row.review || note) {
+    if (row.review || note) {
       summary.keptOrphans += 1;
       continue;
     }

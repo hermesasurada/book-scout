@@ -4,11 +4,10 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { type ReadingStatus, type ReadingView, statusLabels } from "../../lib/readings";
 import { Icon } from "./Icon";
-import { StarRating } from "./StarRating";
 import { toast } from "./Toaster";
 
-// Edit one reading record in a dialog: status, dates, rating, one-line review,
-// memo and current page.
+// Edit one reading record in a dialog: status, dates, one-line review, memo
+// and current page.
 export function ReadingEditor({ reading, onClose }: { reading: ReadingView; onClose: () => void }) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -16,7 +15,6 @@ export function ReadingEditor({ reading, onClose }: { reading: ReadingView; onCl
   const [startedAt, setStartedAt] = useState(reading.startedAt ?? "");
   const [finishedAt, setFinishedAt] = useState(reading.finishedAt ?? "");
   const [stoppedAt, setStoppedAt] = useState(reading.stoppedAt ?? "");
-  const [rating, setRating] = useState<number | null>(reading.rating);
   const [review, setReview] = useState(reading.review);
   const [memo, setMemo] = useState(reading.memo);
   const [currentPage, setCurrentPage] = useState(reading.currentPage?.toString() ?? "");
@@ -38,7 +36,6 @@ export function ReadingEditor({ reading, onClose }: { reading: ReadingView; onCl
           startedAt: startedAt || null,
           finishedAt: status === "finished" ? finishedAt || null : null,
           stoppedAt: status === "stopped" ? stoppedAt || null : null,
-          rating,
           review,
           memo,
           currentPage: status === "reading" ? currentPage : null,
@@ -88,7 +85,7 @@ export function ReadingEditor({ reading, onClose }: { reading: ReadingView; onCl
 
         {reading.source === "bookit" && (
           <p className="mt-3 rounded-lg bg-sunken px-3 py-2 text-[12px] text-muted">
-            북적북적에서 가져온 기록입니다. 병행하는 동안 상태·날짜·메모는 다음 가져오기 때 북적북적 기준으로 바뀝니다. 별점·한줄평은 유지됩니다.
+            북적북적에서 가져온 기록입니다. 병행하는 동안 상태·날짜·메모는 다음 가져오기 때 북적북적 기준으로 바뀝니다. 한줄평은 유지됩니다.
           </p>
         )}
 
@@ -133,12 +130,6 @@ export function ReadingEditor({ reading, onClose }: { reading: ReadingView; onCl
             )}
           </div>
 
-          <div>
-            <p className="text-[12px] text-muted">별점</p>
-            <div className="mt-1">
-              <StarRating value={rating} onChange={setRating} size={26} />
-            </div>
-          </div>
 
           <label className="block text-[12px] text-muted">
             한줄평

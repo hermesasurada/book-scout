@@ -14,7 +14,6 @@ export type StatReading = {
   stoppedAt: string | null;
   datesUnknown: boolean;
   round: number;
-  rating: number | null;
 };
 
 const DAY = 86400000;

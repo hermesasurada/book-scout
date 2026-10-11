@@ -10,7 +10,6 @@ import { Icon } from "../components/Icon";
 import { LinkEditionDialog } from "../components/LinkEditionDialog";
 import { leaveList, rememberListUrl } from "../components/listNav";
 import { ReadingEditor } from "../components/ReadingEditor";
-import { StarRating } from "../components/StarRating";
 import { toast } from "../components/Toaster";
 
 type Tab = "all" | "reading" | "finished" | "stopped";
@@ -214,7 +213,6 @@ function ReadingRow({ reading, onEdit, onLink }: { reading: ReadingView; onEdit:
         {reading.review && <p className="mt-1 line-clamp-2 text-[12.5px] text-ink-2">“{reading.review}”</p>}
       </div>
       <div className="flex shrink-0 flex-col items-end justify-between gap-1">
-        <StarRating value={reading.rating} size={13} />
         <button className="icon-btn md:opacity-0 md:transition-opacity md:group-focus-within:opacity-100 md:group-hover:opacity-100" onClick={onEdit} aria-label={`${reading.title} 기록 편집`} title="기록 편집">
           <Icon name="pencil" />
         </button>
@@ -241,7 +239,7 @@ function ReadingNowCard({ reading, today, onEdit, onLink }: { reading: ReadingVi
       toast("저장하지 못했습니다.", "error");
       return;
     }
-    toast(`‘${reading.title}’ 완독! 별점과 한줄평을 남겨 보세요.`);
+    toast(`‘${reading.title}’ 완독! 한줄평을 남겨 보세요.`);
     router.refresh();
     onEdit();
   }

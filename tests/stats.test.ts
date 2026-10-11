@@ -14,7 +14,6 @@ const r = (patch: Partial<StatReading>): StatReading => ({
   stoppedAt: null,
   datesUnknown: false,
   round: 1,
-  rating: null,
   ...patch,
 });
 

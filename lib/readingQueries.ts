@@ -21,7 +21,6 @@ export async function loadReadings(db: Db, bookId?: number): Promise<ReadingView
       stoppedAt: readings.stoppedAt,
       datesUnknown: readings.datesUnknown,
       round: readings.round,
-      rating: readings.rating,
       review: readings.review,
       memo: readings.memo,
       currentPage: readings.currentPage,

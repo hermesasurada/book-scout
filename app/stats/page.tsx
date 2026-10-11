@@ -23,7 +23,6 @@ export default async function StatsPage({ searchParams }: { searchParams: Search
     stoppedAt: reading.stoppedAt,
     datesUnknown: reading.datesUnknown,
     round: reading.round,
-    rating: reading.rating,
   }));
   const year = typeof params.year === "string" ? params.year : "";
   return <StatsView readings={readings} today={today()} initialYear={year} />;

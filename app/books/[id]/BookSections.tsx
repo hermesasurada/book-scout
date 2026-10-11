@@ -6,7 +6,6 @@ import { type ReadingView, readingPeriod, statusLabels } from "../../../lib/read
 import { dotDate } from "../../../lib/readings";
 import { Icon } from "../../components/Icon";
 import { ReadingEditor } from "../../components/ReadingEditor";
-import { StarRating } from "../../components/StarRating";
 import { toast } from "../../components/Toaster";
 
 export type NoteView = { id: number; readingId: number; page: number | null; quote: string; memo: string; createdAt: string };
@@ -55,7 +54,6 @@ export function ReadingSection({ readings, notes }: { readings: ReadingView[]; n
                 <p className="tabular mt-0.5 text-[12.5px] text-muted">{readingPeriod(reading)}</p>
               </div>
               <div className="flex items-center gap-2">
-                <StarRating value={reading.rating} size={15} />
                 <button className="icon-btn" onClick={() => setEditing(reading)} aria-label="기록 편집" title="기록 편집">
                   <Icon name="pencil" />
                 </button>

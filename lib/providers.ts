@@ -114,10 +114,19 @@ export function aladinItemIdFromLink(link: string | null | undefined): string {
   return (link ?? "").match(/ItemId=(\d+)/i)?.[1] ?? "";
 }
 
-async function fetchWeb(url: string): Promise<string> {
-  const response = await fetch(url, { headers: WEB_HEADERS });
-  if (!response.ok) throw new Error(`알라딘 페이지 조회 실패 (${response.status})`);
-  return response.text();
+// One retry after a short pause: bulk imports hit Aladin back to back and an
+// occasional reset or 5xx should not turn into "not found".
+async function fetchWeb(url: string, attempt = 0): Promise<string> {
+  try {
+    const response = await fetch(url, { headers: WEB_HEADERS });
+    if (response.status >= 500 && attempt === 0) throw new Error(`HTTP ${response.status}`);
+    if (!response.ok) throw new Error(`알라딘 페이지 조회 실패 (${response.status})`);
+    return await response.text();
+  } catch (error) {
+    if (attempt > 0) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    return fetchWeb(url, attempt + 1);
+  }
 }
 
 function toNumber(value: string | undefined | null): number | null {
@@ -228,20 +237,29 @@ export function parseAladinProduct(html: string, itemId: string): AladinProduct 
   const title = cleanAladinTitle(ogTitle.split("|")[0].trim());
 
   const bylineAt = html.indexOf("Ere_sub2_title");
-  const byline = bylineAt >= 0 ? plainText(html.slice(bylineAt, bylineAt + 1200)) : "";
+  // Long author lists push the publisher and date far down; read enough.
+  const byline = bylineAt >= 0 ? plainText(html.slice(bylineAt, bylineAt + 6000)) : "";
   const pubDate = metaContent(html, "datePublished") || byline.match(/\d{4}-\d{2}-\d{2}/)?.[0] || "";
   let author = metaContent(html, "og:author");
   let publisher = "";
   if (pubDate && byline.includes(pubDate)) {
     const before = byline.slice(0, byline.indexOf(pubDate)).replace(/^Ere_sub2_title"?>?\s*/, "").trim();
-    const lastParen = before.lastIndexOf(")");
-    if (lastParen >= 0) {
-      author = before.slice(0, lastParen + 1).trim();
-      publisher = before.slice(lastParen + 1).trim();
+    // "오건영 (지은이) 페이지2(page2)": split after the last contributor role,
+    // not the last parenthesis — publisher names carry parentheses too.
+    const roles = [...before.matchAll(/\((?:[^()]*이|그림|글|사진|감수|해설|편저|편역|원작|기획|글·그림|글·사진|엮음|옮김|지음)\)/g)];
+    const last = roles.at(-1);
+    if (last?.index != null) {
+      const cut = last.index + last[0].length;
+      author = before.slice(0, cut).trim();
+      publisher = before.slice(cut).trim();
     } else {
       publisher = before.split(/\s{2,}/).pop()?.trim() ?? "";
     }
   }
+  // The publisher is the byline's PublisherSearch link — exact even when the
+  // name itself carries parentheses or the author list is long.
+  const publisherLink = bylineAt >= 0 ? html.slice(bylineAt, bylineAt + 6000).match(/PublisherSearch=[^"]*"[^>]*>([^<]+)<\/a>/)?.[1] : undefined;
+  if (publisherLink) publisher = decodeHtml(publisherLink).trim();
   // The original title is an anchor whose text reads "원제 : <title>".
   const originalTitle = decodeHtml(
     html.slice(bylineAt, bylineAt + 2500).match(/<a[^>]*>\s*원제\s*[:：]\s*([^<]+)<\/a>/)?.[1] ?? "",

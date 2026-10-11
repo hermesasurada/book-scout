@@ -60,6 +60,70 @@ const MIGRATIONS: Migration[] = [
       "ALTER TABLE checks ADD COLUMN aladin_count INTEGER",
     ],
   },
+  {
+    // `books` becomes the edition catalog; watching, reading and owning are
+    // separate relations. Every existing book was a watched book.
+    id: 2,
+    name: "watchlist-readings-purchases",
+    statements: [
+      `CREATE TABLE watchlist (
+        book_id INTEGER PRIMARY KEY NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+        added_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      "INSERT OR IGNORE INTO watchlist (book_id, added_at) SELECT id, created_at FROM books",
+      "ALTER TABLE books ADD COLUMN pages INTEGER",
+      `CREATE TABLE readings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        book_id INTEGER REFERENCES books(id) ON DELETE SET NULL,
+        title TEXT NOT NULL,
+        author TEXT NOT NULL DEFAULT '',
+        publisher TEXT NOT NULL DEFAULT '',
+        status TEXT NOT NULL,
+        started_at TEXT,
+        finished_at TEXT,
+        stopped_at TEXT,
+        dates_unknown INTEGER NOT NULL DEFAULT 0,
+        round INTEGER NOT NULL DEFAULT 1,
+        rating REAL,
+        review TEXT NOT NULL DEFAULT '',
+        memo TEXT NOT NULL DEFAULT '',
+        current_page INTEGER,
+        match_status TEXT NOT NULL DEFAULT 'manual',
+        source TEXT NOT NULL DEFAULT 'manual',
+        source_key TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      "CREATE UNIQUE INDEX readings_source_key ON readings (source, source_key)",
+      "CREATE INDEX readings_book_idx ON readings (book_id)",
+      "CREATE INDEX readings_finished_idx ON readings (finished_at)",
+      `CREATE TABLE purchases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+        purchased_at TEXT NOT NULL,
+        channel TEXT NOT NULL,
+        store TEXT NOT NULL DEFAULT '',
+        condition TEXT NOT NULL DEFAULT 'new',
+        price INTEGER,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        order_no TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT 'manual',
+        source_key TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      "CREATE UNIQUE INDEX purchases_source_key ON purchases (source, source_key)",
+      "CREATE INDEX purchases_book_idx ON purchases (book_id)",
+      `CREATE TABLE reading_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        reading_id INTEGER NOT NULL REFERENCES readings(id) ON DELETE CASCADE,
+        page INTEGER,
+        quote TEXT NOT NULL DEFAULT '',
+        memo TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      "CREATE INDEX reading_notes_reading_idx ON reading_notes (reading_id)",
+    ],
+  },
 ];
 
 async function migrate(db: D1Database) {

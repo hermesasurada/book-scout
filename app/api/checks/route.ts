@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { books, checks } from "../../../db/schema";
+import { books, checks, watchlist } from "../../../db/schema";
 import {
   aladinItemIdFromLink,
   aladinProductLink,
@@ -75,9 +75,9 @@ export async function POST(request: Request) {
     notify?: boolean;
   };
   const db = await getDb();
-  const targets = payload.bookId
-    ? await db.select().from(books).where(eq(books.id, payload.bookId))
-    : await db.select().from(books);
+  // Only watched books are checked; owned or merely-read books are not.
+  const watched = db.select({ book: books }).from(watchlist).innerJoin(books, eq(books.id, watchlist.bookId));
+  const targets = (payload.bookId ? await watched.where(eq(books.id, payload.bookId)) : await watched).map((row) => row.book);
 
   // Snapshot each book's most recent (i.e. previous-run / yesterday) status so
   // we can detect books that just gained Aladin stock or library availability.
@@ -101,13 +101,14 @@ export async function POST(request: Request) {
     const itemId = book.aladinItemId || aladinItemIdFromLink(book.aladinLink) || (await findAladinItemId(book.isbn13));
     if (!itemId) return "";
     const set: Partial<typeof books.$inferInsert> = { aladinItemId: itemId, aladinLink: aladinProductLink(itemId) };
-    const missing = !book.cover || !book.pubDate || !book.priceSales || !book.category;
+    const missing = !book.cover || !book.pubDate || !book.priceSales || !book.category || book.pages == null;
     if (force || missing) {
       const product = await lookupAladinProduct(itemId).catch(() => null);
       if (product) {
         set.cover = book.cover || product.cover;
         set.pubDate = product.pubDate || book.pubDate;
         set.category = product.categoryName || book.category;
+        set.pages = product.page ?? book.pages;
         set.priceSales = product.priceSales;
         set.salesPoint = product.salesPoint;
         set.reviewRank = product.reviewRank;

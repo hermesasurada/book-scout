@@ -1,6 +1,8 @@
 import { sql } from "drizzle-orm";
 import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
+// Edition catalog (one row per ISBN). Watching, reading and owning are
+// separate relations below.
 export const books = sqliteTable(
   "books",
   {
@@ -14,6 +16,7 @@ export const books = sqliteTable(
     aladinItemId: text("aladin_item_id").notNull().default(""),
     pubDate: text("pub_date").notNull().default(""),
     category: text("category").notNull().default(""),
+    pages: integer("pages"),
     priceSales: integer("price_sales"),
     salesPoint: integer("sales_point"),
     // Aladin's 10-point average carries one decimal (9.8), so this is a real.
@@ -26,6 +29,12 @@ export const books = sqliteTable(
   },
   (table) => [uniqueIndex("books_isbn13_unique").on(table.isbn13)],
 );
+
+/** 관심도서 — the only books whose Aladin stock and library loans are checked. */
+export const watchlist = sqliteTable("watchlist", {
+  bookId: integer("book_id").primaryKey().references(() => books.id, { onDelete: "cascade" }),
+  addedAt: text("added_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
 
 export const checks = sqliteTable(
   "checks",
@@ -46,3 +55,82 @@ export const checks = sqliteTable(
   },
   (table) => [index("checks_book_date_idx").on(table.bookId, table.checkedAt)],
 );
+
+export type ReadingStatus = "reading" | "finished" | "stopped";
+
+/**
+ * One read of a book (a re-read is another row with round + 1). Title/author
+ * are kept on the row so imported records that could not be matched to an
+ * Aladin edition (book_id null) still display.
+ */
+export const readings = sqliteTable(
+  "readings",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    bookId: integer("book_id").references(() => books.id, { onDelete: "set null" }),
+    title: text("title").notNull(),
+    author: text("author").notNull().default(""),
+    publisher: text("publisher").notNull().default(""),
+    status: text("status").$type<ReadingStatus>().notNull(),
+    startedAt: text("started_at"),
+    finishedAt: text("finished_at"),
+    stoppedAt: text("stopped_at"),
+    /** Read before records began (북적북적's 2020-12-31 placeholder); no real dates. */
+    datesUnknown: integer("dates_unknown", { mode: "boolean" }).notNull().default(false),
+    round: integer("round").notNull().default(1),
+    /** 0.5–5 */
+    rating: real("rating"),
+    review: text("review").notNull().default(""),
+    memo: text("memo").notNull().default(""),
+    currentPage: integer("current_page"),
+    /** matched | unmatched | manual */
+    matchStatus: text("match_status").notNull().default("manual"),
+    /** manual | bookit */
+    source: text("source").notNull().default("manual"),
+    sourceKey: text("source_key"),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("readings_source_key").on(table.source, table.sourceKey),
+    index("readings_book_idx").on(table.bookId),
+    index("readings_finished_idx").on(table.finishedAt),
+  ],
+);
+
+export const purchases = sqliteTable(
+  "purchases",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    bookId: integer("book_id").notNull().references(() => books.id, { onDelete: "cascade" }),
+    purchasedAt: text("purchased_at").notNull(),
+    /** aladin_online | aladin_store | other */
+    channel: text("channel").notNull(),
+    store: text("store").notNull().default(""),
+    /** new | used | ebook */
+    condition: text("condition").notNull().default("new"),
+    price: integer("price"),
+    quantity: integer("quantity").notNull().default(1),
+    orderNo: text("order_no").notNull().default(""),
+    /** manual | gmail */
+    source: text("source").notNull().default("manual"),
+    sourceKey: text("source_key"),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [uniqueIndex("purchases_source_key").on(table.source, table.sourceKey), index("purchases_book_idx").on(table.bookId)],
+);
+
+/** 문장 수집 — quotes and thoughts attached to a reading. */
+export const readingNotes = sqliteTable(
+  "reading_notes",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    readingId: integer("reading_id").notNull().references(() => readings.id, { onDelete: "cascade" }),
+    page: integer("page"),
+    quote: text("quote").notNull().default(""),
+    memo: text("memo").notNull().default(""),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [index("reading_notes_reading_idx").on(table.readingId)],
+);
+

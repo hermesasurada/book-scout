@@ -1,7 +1,8 @@
 # 책갈피 (book-scout)
 
-개인용 독서 관리 사이트. 관심도서의 알라딘 중고매장 재고·도서관 대출 가능 여부를 매일
-확인하고, 독서 기록·보유 도서·독서 통계를 관리한다. 운영 원칙은 [AGENTS.md](AGENTS.md).
+개인용 독서 관리 사이트. 독서 기록(북적북적 가져오기 포함)·문장 수집·보유 도서(알라딘 구매 메일
+자동 등록)·독서 패턴 통계를 관리하고, 관심도서의 알라딘 중고매장 재고·도서관 대출 가능 여부를 매일
+확인한다. 운영 원칙은 [AGENTS.md](AGENTS.md).
 
 ## 구성
 
@@ -20,7 +21,8 @@
 ## 명령
 
 - `npm run dev` — 개발 서버
-- `npm run lint` / `npm test`
+- `npm run lint` / `npm test` (`npm run test:unit` — 파서·통계 단위 테스트)
 - `npm run check:daily` — 일일 점검 수동 실행
 - `npm run db:backup` — DB 백업
 - `npm run db:generate` — 스키마 변경 후 Drizzle 기록 생성
+- `node scripts/gmail-auth.mjs` — Gmail 읽기 전용 연동(최초 1회, `.dev.vars.example` 참고)

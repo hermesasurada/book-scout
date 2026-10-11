@@ -13,6 +13,7 @@ const NAV: Array<{ href: string; label: string; icon: IconName }> = [
   { href: "/reading", label: "독서 기록", icon: "bookOpen" },
   { href: "/shelf", label: "내 서재", icon: "shelf" },
   { href: "/watch", label: "관심도서", icon: "bookmark" },
+  { href: "/stats", label: "통계", icon: "chart" },
 ];
 
 function Brand() {

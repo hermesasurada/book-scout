@@ -78,3 +78,25 @@ test("online order mail", () => {
   assert.equal(mail.lines[0].price, 18000);
   assert.equal(parsePurchaseMail("상품을 발송하였습니다.", html, "2026-07-04"), null);
 });
+
+test("purchase-history CSV: books only, store vs online, used copies", async () => {
+  const { parseOrderCsv } = await import("../lib/orderCsv");
+  const csv = [
+    "﻿주문일,주문번호,도서명,저자/출판사,수량,단가,배송비,할인/적립금,결제금액,상태",
+    "2026-01-05,001-A943118668,[출판사 사은품] <돈의 방정식> 북마크 [사은품],,1,200,0,마일리지 200,25200,주문완료",
+    "2026-01-05,001-A943118668,돈의 방정식,모건 하우절 / 서삼독,1,25200,,,,",
+    '2025-11-18,중고매장(분당서현점),[중고] 반도체 초격차,"마르크 헤잉크 지음, 김장렬 옮김 / 이든하우스",1,16400,0,0,16400,구매완료',
+    "2026-04-26,001-A294179258,Project Hail Mary (원서),앤디 위어 / Ballantine Group,1,10800,,,,",
+  ].join("\n");
+  const { lines, skipped } = parseOrderCsv(csv);
+  assert.equal(skipped.length, 1);
+  assert.deepEqual(lines[0], {
+    purchasedAt: "2026-01-05", orderNo: "001-A943118668", channel: "aladin_online", store: "",
+    title: "돈의 방정식", author: "모건 하우절", publisher: "서삼독", quantity: 1, price: 25200, condition: "new",
+  });
+  assert.equal(lines[1].channel, "aladin_store");
+  assert.equal(lines[1].store, "분당서현점");
+  assert.equal(lines[1].condition, "used");
+  assert.equal(lines[1].title, "반도체 초격차");
+  assert.equal(lines[2].title, "Project Hail Mary");
+});

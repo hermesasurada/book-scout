@@ -19,13 +19,41 @@ type BookitResult = {
   unmatched: Array<{ title: string; author: string; status: string }>;
   error?: string;
 };
+type OrdersResult = {
+  books: number;
+  skippedGoods: string[];
+  added: Array<{ title: string; purchasedAt: string; unwatched: boolean }>;
+  duplicates: string[];
+  unmatched: string[];
+  error?: string;
+};
 type GmailResult = { found: number; skipped: number; parsed: number; added: number; purchases: Array<{ title: string; purchasedAt: string; unwatched: boolean }>; error?: string };
 
 export function Imports({ gmailReady, stats }: { gmailReady: boolean; stats: Stats }) {
   const router = useRouter();
   const [bookit, setBookit] = useState<BookitResult | null>(null);
   const [gmail, setGmail] = useState<GmailResult | null>(null);
-  const [busy, setBusy] = useState<"bookit" | "gmail" | null>(null);
+  const [orders, setOrders] = useState<OrdersResult | null>(null);
+  const [busy, setBusy] = useState<"bookit" | "gmail" | "orders" | null>(null);
+
+  async function importOrders(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    setBusy("orders");
+    setOrders(null);
+    try {
+      const response = await fetch("/api/import/orders", { method: "POST", headers: { "content-type": "text/csv; charset=utf-8" }, body: await file.text() });
+      const data = (await response.json()) as OrdersResult;
+      if (!response.ok) throw new Error(data.error);
+      setOrders(data);
+      router.refresh();
+    } catch (error) {
+      toast(error instanceof Error && error.message ? error.message : "가져오지 못했습니다.", "error");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function importBookit(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -144,6 +172,29 @@ export function Imports({ gmailReady, stats }: { gmailReady: boolean; stats: Sta
               <li>터미널에서 <code>node scripts/gmail-auth.mjs</code>를 실행해 읽기 전용 권한을 허용합니다.</li>
               <li>서버를 재시작하면 이 화면에서 바로 가져올 수 있습니다.</li>
             </ol>
+          </div>
+        )}
+      </section>
+
+      <section className="card p-5">
+        <h2 className="text-[15px] font-semibold">구매내역 CSV</h2>
+        <p className="mt-1 text-[13px] text-muted">
+          주문일·주문번호·도서명·저자/출판사·수량·단가 열이 있는 구매내역 CSV를 내 서재에 넣습니다. 책마다 알라딘 판본을 찾아 연결하고, 같은 날 같은 책은 한 번만 등록합니다(메일 동기화와 겹쳐도 중복 없음). 사은품·봉투처럼 저자가 없는 줄은 건너뜁니다.
+        </p>
+        <label className={`btn mt-4 ${busy ? "pointer-events-none opacity-50" : ""}`}>
+          <Icon name="plus" />
+          {busy === "orders" ? "가져오는 중…" : "CSV 파일 선택"}
+          <input type="file" accept=".csv,text/csv" className="sr-only-x" onChange={(event) => void importOrders(event)} disabled={busy !== null} />
+        </label>
+        {orders && (
+          <div className="mt-4 rounded-lg bg-sunken p-3 text-[13px]">
+            <p>
+              도서 {orders.books}권 중 새로 {orders.added.length} · 이미 있음 {orders.duplicates.length}
+              {orders.skippedGoods.length ? ` · 도서 아님 ${orders.skippedGoods.length}줄 건너뜀` : ""}
+            </p>
+            {orders.unmatched.length > 0 && (
+              <p className="mt-1 text-muted">판본을 찾지 못함: {orders.unmatched.join(", ")}</p>
+            )}
           </div>
         )}
       </section>

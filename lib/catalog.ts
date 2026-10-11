@@ -71,6 +71,9 @@ function score(input: MatchInput, hit: AladinSearchBook) {
   const hitCore = coreTitle(hit.title);
   let title = 0;
   if (!hitCore) return 0;
+  // Large-print, audio and e-book editions only when the record says so.
+  const format = /큰글자|큰활자|오디오북|Audio|\bCD\b|eBook|전자책/i;
+  if (format.test(hit.title) && !format.test(input.title)) return 0;
   // "[세트] 제로 투 원 + 경영의 모험" bundles another book.
   if (/^\s*\[세트\]/.test(hit.title) && hit.title.includes("+") && !/세트|set|\+/i.test(input.title)) return 0;
   if (fullTitle(input.title) === fullTitle(hit.title)) title = 1.2;
@@ -86,7 +89,14 @@ function score(input: MatchInput, hit: AladinSearchBook) {
   // A different publisher is a different book (another translation or set).
   const pubA = publisherKey(input.publisher);
   const pubB = publisherKey(hit.publisher);
-  const pubSimilarity = pubA && pubB ? similarity(pubA, pubB) : null;
+  // Latin publisher names share words, not syllables: compare their start.
+  const latin = /^[a-z0-9&.\-]+$/;
+  const pubSimilarity =
+    pubA && pubB
+      ? latin.test(pubA) && latin.test(pubB)
+        ? pubA.slice(0, 5) === pubB.slice(0, 5) ? 1 : 0
+        : similarity(pubA, pubB)
+      : null;
   if (pubSimilarity === 0) return 0;
 
   const names = authorNames(input.author);
@@ -113,8 +123,10 @@ export async function matchEdition(input: MatchInput): Promise<MatchResult> {
   const firstAuthor = input.author.replace(/\([^)]*\)/g, "").split(/[,|]/)[0].trim();
   const queries = [...new Set([firstAuthor ? `${base} ${firstAuthor}` : base, base])];
   let best: MatchResult = null;
+  // Latin-script titles are original-language editions (외국도서).
+  const target = /[가-힣]/.test(base) ? "Book" : "Foreign";
   for (const query of queries) {
-    const hits = await searchAladin(query).catch(() => [] as AladinSearchBook[]);
+    const hits = await searchAladin(query, target).catch(() => [] as AladinSearchBook[]);
     for (const hit of hits) {
       if (!hit.itemId) continue;
       const value = score(input, hit);

@@ -1,6 +1,6 @@
 // Turn a parsed Aladin purchase mail into purchase rows. Owned books stop
 // being watched — there is nothing left to find for them.
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { DrizzleD1Database } from "drizzle-orm/d1";
 import * as schema from "../db/schema";
 import type { ParsedPurchaseMail } from "./aladinMail";
@@ -8,6 +8,17 @@ import { ensureBookForItem } from "./catalog";
 
 type Db = DrizzleD1Database<typeof schema>;
 const { books, mailImports, purchases, watchlist } = schema;
+
+// One purchase per book per day: the same order can arrive from the mail sync
+// and from an imported purchase list.
+export async function samePurchaseExists(db: Db, bookId: number, purchasedAt: string) {
+  const [row] = await db
+    .select({ id: purchases.id })
+    .from(purchases)
+    .where(and(eq(purchases.bookId, bookId), eq(purchases.purchasedAt, purchasedAt)))
+    .limit(1);
+  return Boolean(row);
+}
 
 export type RecordedPurchase = { bookId: number; title: string; purchasedAt: string; unwatched: boolean };
 
@@ -17,6 +28,8 @@ export async function recordPurchaseMail(db: Db, messageId: string, mail: Parsed
     // Non-book goods (envelopes, bags) have no ISBN and are skipped.
     const bookId = await ensureBookForItem(db, line.itemId);
     if (!bookId) continue;
+    // Already recorded from another source (e.g. a purchase-history CSV).
+    if (await samePurchaseExists(db, bookId, mail.purchasedAt)) continue;
     const inserted = await db
       .insert(purchases)
       .values({

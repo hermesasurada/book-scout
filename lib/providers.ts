@@ -211,8 +211,9 @@ export function parseAladinSearch(html: string): AladinSearchBook[] {
   return results;
 }
 
-export async function searchAladin(query: string): Promise<AladinSearchBook[]> {
-  const url = `${ALADIN_WEB}/search/wsearchresult.aspx?SearchTarget=Book&SearchWord=${encodeURIComponent(query)}`;
+// target "Book" = 국내도서, "Foreign" = 외국도서 (original-language editions).
+export async function searchAladin(query: string, target: "Book" | "Foreign" = "Book"): Promise<AladinSearchBook[]> {
+  const url = `${ALADIN_WEB}/search/wsearchresult.aspx?SearchTarget=${target}&SearchWord=${encodeURIComponent(query)}`;
   return parseAladinSearch(await fetchWeb(url)).slice(0, 12);
 }
 

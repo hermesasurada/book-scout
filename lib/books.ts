@@ -77,9 +77,6 @@ export function statusTone(status?: string | null): Tone {
 export function libraryAvailable(status?: string | null) {
   return status === "available" || status === "other_available";
 }
-export function libraryLoaned(status?: string | null) {
-  return status === "loaned" || status === "other_loaned";
-}
 
 export function aladinStatusLabel(book: Pick<Book, "aladinStatus" | "aladinCount">) {
   if (book.aladinStatus === "in_stock" && book.aladinCount != null) return `재고 있음(${book.aladinCount.toLocaleString()}권)`;

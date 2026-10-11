@@ -64,7 +64,6 @@ export type AladinProduct = {
   /** 리뷰 편수 */
   reviewCount: number | null;
   page: number | null;
-  packing: string;
   cover: string;
   link: string;
 };
@@ -282,9 +281,6 @@ export function parseAladinProduct(html: string, itemId: string): AladinProduct 
   const commentCount = toNumber(counts.match(/100자평\s*\(\s*([\d,]+)\s*\)/)?.[1]);
   const reviewCount = toNumber(counts.match(/리뷰\s*\(\s*([\d,]+)\s*\)/)?.[1]);
   const page = toNumber(text.match(/(\d+)쪽/)?.[1]);
-  const size = text.match(/(\d+)\s*\*\s*(\d+)\s*mm/);
-  const weight = text.match(/(\d+)\s*g\b/)?.[1];
-  const packing = [size ? `${size[1]}×${size[2]}mm` : "", weight ? `${weight}g` : ""].filter(Boolean).join(" · ");
 
   return {
     itemId,
@@ -305,7 +301,6 @@ export function parseAladinProduct(html: string, itemId: string): AladinProduct 
     commentCount,
     reviewCount,
     page,
-    packing,
     cover: metaContent(html, "og:image"),
     link: aladinProductLink(itemId),
   };

@@ -249,7 +249,6 @@ async function AladinInfo({ itemId }: { itemId: string }) {
   const rows: Array<[string, string]> = [
     ["ISBN", detail.isbn13],
     ["쪽수", detail.page ? `${detail.page}쪽` : ""],
-    ["사양", detail.packing],
     ["원제", detail.originalTitle],
     ["정가", detail.priceStandard ? won(detail.priceStandard) : ""],
     ["판매가", detail.priceSales ? won(detail.priceSales) : ""],

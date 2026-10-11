@@ -11,7 +11,6 @@ import {
   cleanUrl,
   libraryAvailable,
   libraryHref,
-  libraryLoaned,
   libraryStatusLabel,
   ratingText,
   relativeTime,
@@ -31,7 +30,7 @@ const CACHE_KEY = `bookscout:books:v${CACHE_VERSION}`;
 const STALE_CACHE_KEYS = ["bookscout:books", ...Array.from({ length: CACHE_VERSION - 1 }, (_, i) => `bookscout:books:v${i + 1}`)];
 const VIEW_KEY = "bookscout:watch-view";
 
-type Filter = "all" | "aladin" | "library" | "library_loaned";
+type Filter = "all" | "aladin" | "library";
 type SortKey = "added" | "published" | "sales" | "rating" | "reviews" | "price" | "stock" | "discount" | "due";
 type SortDirection = "asc" | "desc";
 type View = "list" | "grid";
@@ -52,7 +51,6 @@ const filters: Array<{ key: Filter; label: string }> = [
   { key: "all", label: "전체" },
   { key: "aladin", label: "알라딘 재고 있음" },
   { key: "library", label: "대출가능" },
-  { key: "library_loaned", label: "대출중" },
 ];
 
 type ListState = { filter: Filter; category: string; q: string; sort: SortKey; dir: SortDirection; page: number };
@@ -171,7 +169,6 @@ export function Watchlist() {
       all: books.length,
       aladin: books.filter((book) => book.aladinStatus === "in_stock").length,
       library: books.filter((book) => libraryAvailable(book.libraryStatus)).length,
-      library_loaned: books.filter((book) => libraryLoaned(book.libraryStatus)).length,
     }),
     [books],
   );
@@ -191,7 +188,6 @@ export function Watchlist() {
     const matched = books.filter((book) => {
       if (filter === "aladin" && book.aladinStatus !== "in_stock") return false;
       if (filter === "library" && !libraryAvailable(book.libraryStatus)) return false;
-      if (filter === "library_loaned" && !libraryLoaned(book.libraryStatus)) return false;
       if (category && bookCategory(book) !== category) return false;
       if (needle) {
         const haystack = `${book.title} ${book.author} ${book.publisher} ${book.isbn13}`.toLowerCase();
@@ -303,9 +299,7 @@ export function Watchlist() {
         ? "알라딘에 재고가 있는 책이 없습니다."
         : state.filter === "library"
           ? "도서관에서 대출 가능한 책이 없습니다."
-          : state.filter === "library_loaned"
-            ? "도서관에서 대출 중인 책이 없습니다."
-            : "조건에 맞는 책이 없습니다.";
+          : "조건에 맞는 책이 없습니다.";
 
   return (
     <div>

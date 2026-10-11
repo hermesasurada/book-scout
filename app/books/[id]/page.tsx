@@ -20,6 +20,7 @@ import {
   usedDiscount,
   won,
 } from "../../../lib/books";
+import { productDetails } from "../../../lib/catalog";
 import { lookupAladinProduct } from "../../../lib/providers";
 import { loadReadings } from "../../../lib/readingQueries";
 import { Icon } from "../../components/Icon";
@@ -213,9 +214,11 @@ export default async function BookPage({ params }: Params) {
       </section>
       )}
 
-      {book.aladinItemId && (
+      {book.detailsAt || !book.aladinItemId ? (
+        <BookInfo details={book} />
+      ) : (
         <Suspense fallback={<AladinInfoSkeleton />}>
-          <AladinInfo itemId={book.aladinItemId} />
+          <FetchBookInfo bookId={book.id} itemId={book.aladinItemId} fallback={book} />
         </Suspense>
       )}
     </div>
@@ -235,31 +238,32 @@ function AladinInfoSkeleton() {
   );
 }
 
-// Live from the Aladin product page: details this site does not store.
-async function AladinInfo({ itemId }: { itemId: string }) {
-  const detail = await lookupAladinProduct(itemId).catch(() => null);
-  if (!detail) {
-    return (
-      <section className="mt-8">
-        <h2 className="mb-2.5 text-[15px] font-semibold">책 정보</h2>
-        <p className="card p-4 text-[13px] text-muted">알라딘에서 정보를 불러오지 못했습니다.</p>
-      </section>
-    );
-  }
+type Details = {
+  isbn13: string;
+  pages: number | null;
+  originalTitle: string;
+  priceStandard: number | null;
+  priceSales: number | null;
+  category: string;
+  subTitle: string;
+  description: string;
+};
+
+function BookInfo({ details }: { details: Details }) {
   const rows: Array<[string, string]> = [
-    ["ISBN", detail.isbn13],
-    ["쪽수", detail.page ? `${detail.page}쪽` : ""],
-    ["원제", detail.originalTitle],
-    ["정가", detail.priceStandard ? won(detail.priceStandard) : ""],
-    ["판매가", detail.priceSales ? won(detail.priceSales) : ""],
-    ["분류", detail.categoryName],
+    ["ISBN", details.isbn13],
+    ["쪽수", details.pages ? `${details.pages}쪽` : ""],
+    ["원제", details.originalTitle],
+    ["정가", details.priceStandard ? won(details.priceStandard) : ""],
+    ["판매가", details.priceSales ? won(details.priceSales) : ""],
+    ["분류", details.category],
   ];
   const visible = rows.filter(([, value]) => value && value.trim());
   return (
     <section className="mt-8">
       <h2 className="mb-2.5 text-[15px] font-semibold">책 정보</h2>
       <div className="card p-4">
-        {detail.subTitle && <p className="mb-3 text-[13.5px] text-ink-2">{detail.subTitle}</p>}
+        {details.subTitle && <p className="mb-3 text-[13.5px] text-ink-2">{details.subTitle}</p>}
         <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
           {visible.map(([label, value]) => (
             <div key={label} className="grid grid-cols-[56px_minmax(0,1fr)] gap-2 text-[13px]">
@@ -268,13 +272,38 @@ async function AladinInfo({ itemId }: { itemId: string }) {
             </div>
           ))}
         </dl>
-        {detail.description && (
+        {details.description && (
           <div className="mt-4 border-t border-line pt-4">
             <h3 className="text-[12.5px] font-semibold text-muted">책 소개</h3>
-            <p className="mt-1.5 whitespace-pre-line text-[13.5px] leading-relaxed text-ink-2">{detail.description}</p>
+            <p className="mt-1.5 whitespace-pre-line text-[13.5px] leading-relaxed text-ink-2">{details.description}</p>
           </div>
         )}
       </div>
     </section>
+  );
+}
+
+// Books catalogued before details were stored: read the Aladin product page
+// once, keep the result, and never fetch it on later visits.
+async function FetchBookInfo({ bookId, itemId, fallback }: { bookId: number; itemId: string; fallback: Details }) {
+  const product = await lookupAladinProduct(itemId).catch(() => null);
+  if (!product) return <BookInfo details={fallback} />;
+  const db = await getDb();
+  await db
+    .update(books)
+    .set({ ...productDetails(product), pages: fallback.pages ?? product.page, category: fallback.category || product.categoryName })
+    .where(eq(books.id, bookId));
+  return (
+    <BookInfo
+      details={{
+        ...fallback,
+        pages: fallback.pages ?? product.page,
+        category: fallback.category || product.categoryName,
+        originalTitle: product.originalTitle,
+        priceStandard: product.priceStandard,
+        subTitle: product.subTitle,
+        description: product.description,
+      }}
+    />
   );
 }

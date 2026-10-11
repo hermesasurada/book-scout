@@ -139,6 +139,19 @@ const MIGRATIONS: Migration[] = [
       )`,
     ],
   },
+  {
+    // The book page's "책 정보" is stored once instead of read from Aladin on
+    // every visit. details_at marks rows whose details were fetched.
+    id: 4,
+    name: "book-details",
+    statements: [
+      "ALTER TABLE books ADD COLUMN sub_title TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE books ADD COLUMN original_title TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE books ADD COLUMN description TEXT NOT NULL DEFAULT ''",
+      "ALTER TABLE books ADD COLUMN price_standard INTEGER",
+      "ALTER TABLE books ADD COLUMN details_at TEXT",
+    ],
+  },
 ];
 
 async function migrate(db: D1Database) {

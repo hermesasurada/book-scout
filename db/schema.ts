@@ -17,6 +17,10 @@ export const books = sqliteTable(
     pubDate: text("pub_date").notNull().default(""),
     category: text("category").notNull().default(""),
     pages: integer("pages"),
+    subTitle: text("sub_title").notNull().default(""),
+    originalTitle: text("original_title").notNull().default(""),
+    description: text("description").notNull().default(""),
+    priceStandard: integer("price_standard"),
     priceSales: integer("price_sales"),
     salesPoint: integer("sales_point"),
     // Aladin's 10-point average carries one decimal (9.8), so this is a real.
@@ -25,6 +29,8 @@ export const books = sqliteTable(
     commentCount: integer("comment_count"),
     /** 리뷰 편수 */
     reviewCount: integer("review_count"),
+    /** When the 책 정보 fields above were last read from the Aladin product page. */
+    detailsAt: text("details_at"),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => [uniqueIndex("books_isbn13_unique").on(table.isbn13)],

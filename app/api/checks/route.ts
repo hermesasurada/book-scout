@@ -11,6 +11,7 @@ import {
   lookupAladinProduct,
   sendTelegram,
 } from "../../../lib/providers";
+import { productDetails } from "../../../lib/catalog";
 
 type RuntimeEnv = {
   ALADIN_STORE_CODE?: string;
@@ -114,6 +115,7 @@ export async function POST(request: Request) {
         set.reviewRank = product.reviewRank;
         set.commentCount = product.commentCount;
         set.reviewCount = product.reviewCount;
+        Object.assign(set, productDetails(product));
       }
     }
     await db.update(books).set(set).where(eq(books.id, book.id));

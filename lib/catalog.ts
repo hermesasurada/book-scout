@@ -3,7 +3,7 @@
 import { eq } from "drizzle-orm";
 import type { DrizzleD1Database } from "drizzle-orm/d1";
 import * as schema from "../db/schema";
-import { aladinProductLink, type AladinSearchBook, lookupAladinProduct, searchAladin } from "./providers";
+import { type AladinProduct, aladinProductLink, type AladinSearchBook, lookupAladinProduct, searchAladin } from "./providers";
 
 type Db = DrizzleD1Database<typeof schema>;
 const { books } = schema;
@@ -125,6 +125,18 @@ export async function matchEdition(input: MatchInput): Promise<MatchResult> {
   return best;
 }
 
+// The 책 정보 fields kept on the catalog row (read from the product page once,
+// refreshed only when the book is checked on demand).
+export function productDetails(product: AladinProduct) {
+  return {
+    subTitle: product.subTitle,
+    originalTitle: product.originalTitle,
+    description: product.description,
+    priceStandard: product.priceStandard,
+    detailsAt: new Date().toISOString().replace("T", " ").slice(0, 19),
+  };
+}
+
 // Ensure a catalog row for this Aladin item and return its id. Fills the
 // fields the watchlist shows, including page count for reading statistics.
 export async function ensureBookForItem(db: Db, itemId: string): Promise<number | null> {
@@ -150,15 +162,24 @@ export async function ensureBookForItem(db: Db, itemId: string): Promise<number 
       reviewRank: product.reviewRank,
       commentCount: product.commentCount,
       reviewCount: product.reviewCount,
+      ...productDetails(product),
     })
     .onConflictDoNothing({ target: books.isbn13 });
-  const [row] = await db.select({ id: books.id, itemId: books.aladinItemId, pages: books.pages }).from(books).where(eq(books.isbn13, product.isbn13));
+  const [row] = await db
+    .select({ id: books.id, itemId: books.aladinItemId, pages: books.pages, detailsAt: books.detailsAt })
+    .from(books)
+    .where(eq(books.isbn13, product.isbn13));
   if (!row) return null;
   // Same ISBN already in the catalog under another listing — fill gaps only.
-  if (!row.itemId || row.pages == null) {
+  if (!row.itemId || row.pages == null || !row.detailsAt) {
     await db
       .update(books)
-      .set({ aladinItemId: row.itemId || itemId, aladinLink: row.itemId ? undefined : aladinProductLink(itemId), pages: row.pages ?? product.page })
+      .set({
+        aladinItemId: row.itemId || itemId,
+        aladinLink: row.itemId ? undefined : aladinProductLink(itemId),
+        pages: row.pages ?? product.page,
+        ...(row.detailsAt ? {} : productDetails(product)),
+      })
       .where(eq(books.id, row.id));
   }
   return row.id;

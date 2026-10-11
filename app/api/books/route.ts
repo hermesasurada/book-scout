@@ -1,6 +1,7 @@
 import { desc, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { books, checks, purchases, watchlist } from "../../../db/schema";
+import { productDetails } from "../../../lib/catalog";
 import { aladinItemIdFromLink, aladinProductLink, lookupAladinProduct } from "../../../lib/providers";
 
 const toInt = (value: unknown): number | null => {
@@ -119,6 +120,7 @@ export async function POST(request: Request) {
         reviewRank: product?.reviewRank ?? toInt(single.reviewRank),
         commentCount: product?.commentCount ?? null,
         reviewCount: product?.reviewCount ?? null,
+        ...(product ? productDetails(product) : {}),
       })
       .onConflictDoNothing({ target: books.isbn13 });
     const [book] = await db.select().from(books).where(eq(books.isbn13, isbn13));

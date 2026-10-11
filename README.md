@@ -1,98 +1,26 @@
-# vinext-starter
+# 책갈피 (book-scout)
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+개인용 독서 관리 사이트. 관심도서의 알라딘 중고매장 재고·도서관 대출 가능 여부를 매일
+확인하고, 독서 기록·보유 도서·독서 통계를 관리한다. 운영 원칙은 [AGENTS.md](AGENTS.md).
 
-## Prerequisites
+## 구성
 
-- Node.js `>=22.13.0`
+- 런타임: [vinext](https://github.com/cloudflare/vinext) (Next.js App Router on Workers) + Cloudflare D1(로컬 sqlite) + Drizzle
+- 서비스: launchd `com.bookscout.server`(상시), `com.bookscout.daily-check`(매일 08:00) — `scripts/install-local-service.sh`
+- 접속: Tailscale 주소 `100.109.86.85:3000` (localhost에는 바인딩하지 않음)
 
-## Quick Start
+## 데이터
 
-```bash
-npm install
-npm run dev
-npm run build
-```
+- DB 파일: `.wrangler/state/v3/d1/miniflare-D1DatabaseObject/*.sqlite`
+- 스키마는 `db/index.ts`의 마이그레이션 목록이 서버 기동 시 한 번씩 적용한다.
+  `drizzle/`는 타입 생성용 기록이며 런타임에 적용되지 않는다.
+- 백업: 일일 점검 직전에 `scripts/backup-db.sh`가 iCloud Drive `book-scout-backups/`에 날짜별 사본을 남긴다.
+  수동 실행은 `npm run db:backup`. 전체 데이터 JSON은 `GET /api/export`.
 
-This starter does not use `wrangler.jsonc`.
+## 명령
 
-## Included Shape
-
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
-
-## Workspace Auth Headers
-
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
-```
-
-## Optional Dispatch-Owned ChatGPT Sign-In
-
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
-
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+- `npm run dev` — 개발 서버
+- `npm run lint` / `npm test`
+- `npm run check:daily` — 일일 점검 수동 실행
+- `npm run db:backup` — DB 백업
+- `npm run db:generate` — 스키마 변경 후 Drizzle 기록 생성

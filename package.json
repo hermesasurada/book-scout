@@ -12,7 +12,8 @@
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",
-    "check:daily": "sh scripts/check-daily.sh"
+    "check:daily": "sh scripts/check-daily.sh",
+    "db:backup": "sh scripts/backup-db.sh"
   },
   "dependencies": {
     "drizzle-orm": "0.45.2",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
+    "@cloudflare/workers-types": "4.20260702.1",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",

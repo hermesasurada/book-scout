@@ -7,6 +7,9 @@ set -eu
 
 HERMES="${HERMES_BIN:-$HOME/.hermes/hermes-agent/venv/bin/hermes}"
 
+# 점검이 DB를 바꾸기 전에 백업한다. 백업 실패는 점검을 막지 않는다.
+"$(dirname "$0")/backup-db.sh" || echo "DB 백업 실패 — 점검은 계속 진행" >&2
+
 resp=$(curl -fsS --max-time 1800 -X POST \
   -H 'content-type: application/json' \
   -d '{"notify":true}' \

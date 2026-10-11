@@ -10,6 +10,8 @@ import { Toaster } from "./Toaster";
 // Sections appear here as they ship; the mobile tab bar shows once there is
 // more than one place to go.
 const NAV: Array<{ href: string; label: string; icon: IconName }> = [
+  { href: "/reading", label: "독서 기록", icon: "bookOpen" },
+  { href: "/shelf", label: "내 서재", icon: "shelf" },
   { href: "/watch", label: "관심도서", icon: "bookmark" },
 ];
 
@@ -48,10 +50,18 @@ export function AppShell({ children }: { children: ReactNode }) {
             </Link>
           ))}
         </nav>
-        <div className="mt-auto space-y-1 px-2.5 text-[11.5px] leading-relaxed text-faint">
-          <p>매일 08:00 자동 확인</p>
-          <p>알라딘 분당서현점 · 보정도서관</p>
-          <p>도서 정보 제공: 알라딘</p>
+        <div className="mt-auto">
+          <Link
+            href="/settings"
+            aria-current={isActive("/settings") ? "page" : undefined}
+            className={`flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium transition-colors ${
+              isActive("/settings") ? "bg-sunken text-ink" : "text-muted hover:bg-sunken hover:text-ink"
+            }`}
+          >
+            <Icon name="settings" className="size-4" />
+            가져오기 · 설정
+          </Link>
+          <p className="mt-3 px-2.5 text-[11.5px] leading-relaxed text-faint">도서 정보 제공: 알라딘</p>
         </div>
       </aside>
 
@@ -61,6 +71,9 @@ export function AppShell({ children }: { children: ReactNode }) {
             <Brand />
           </div>
           <AddBookSearch />
+          <Link href="/settings" className="icon-btn lg:hidden" aria-label="가져오기 · 설정">
+            <Icon name="settings" />
+          </Link>
         </div>
       </header>
 

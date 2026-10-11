@@ -1,9 +1,9 @@
 /* eslint-disable @next/next/no-img-element -- cover URLs are supplied dynamically by Aladin */
-import { asc, eq } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { getDb } from "../../../db";
-import { books, checks } from "../../../db/schema";
+import { books, checks, purchases, readingNotes, watchlist } from "../../../db/schema";
 import {
   aladinLabels,
   aladinStatusLabel,
@@ -21,8 +21,10 @@ import {
   won,
 } from "../../../lib/books";
 import { lookupAladinProduct } from "../../../lib/providers";
+import { loadReadings } from "../../../lib/readingQueries";
 import { Icon } from "../../components/Icon";
 import { BackLink, BookActions } from "./BookActions";
+import { LibraryActions, PurchaseSection, ReadingSection } from "./BookSections";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -32,8 +34,14 @@ async function loadBook(id: string) {
   const db = await getDb();
   const [book] = await db.select().from(books).where(eq(books.id, bookId));
   if (!book) return null;
-  const history = await db.select().from(checks).where(eq(checks.bookId, bookId)).orderBy(asc(checks.checkedAt), asc(checks.id));
-  return { book, history };
+  const [watch] = await db.select().from(watchlist).where(eq(watchlist.bookId, bookId));
+  const history = watch ? await db.select().from(checks).where(eq(checks.bookId, bookId)).orderBy(asc(checks.checkedAt), asc(checks.id)) : [];
+  const readings = await loadReadings(db, bookId);
+  const notes = readings.length
+    ? await db.select().from(readingNotes).where(inArray(readingNotes.readingId, readings.map((reading) => reading.id))).orderBy(asc(readingNotes.page), asc(readingNotes.id))
+    : [];
+  const owned = await db.select().from(purchases).where(eq(purchases.bookId, bookId)).orderBy(desc(purchases.purchasedAt), desc(purchases.id));
+  return { book, watched: Boolean(watch), history, readings, notes, purchases: owned };
 }
 
 export async function generateMetadata({ params }: Params) {
@@ -84,7 +92,7 @@ function formatDate(value: string) {
 export default async function BookPage({ params }: Params) {
   const loaded = await loadBook((await params).id);
   if (!loaded) notFound();
-  const { book, history } = loaded;
+  const { book, watched, history, readings, notes, purchases: owned } = loaded;
   const latest = history.at(-1);
   const view = {
     ...book,
@@ -133,12 +141,26 @@ export default async function BookPage({ params }: Params) {
             {book.salesPoint ? <div><dt className="sr-only-x">판매지수</dt><dd className="tabular">판매지수 {book.salesPoint.toLocaleString()}</dd></div> : null}
             {book.priceSales ? <div><dt className="sr-only-x">판매가</dt><dd className="tabular">새책 {won(book.priceSales)}</dd></div> : null}
           </dl>
-          <div className="mt-5">
-            <BookActions bookId={book.id} title={book.title} aladinLink={cleanUrl(book.aladinLink)} />
+          <div className="mt-5 flex flex-wrap gap-2">
+            <LibraryActions
+              bookId={book.id}
+              itemId={book.aladinItemId}
+              isbn13={book.isbn13}
+              title={book.title}
+              watched={watched}
+              owned={owned.length > 0}
+              reading={readings.some((reading) => reading.status === "reading")}
+              readBefore={readings.some((reading) => reading.status === "finished")}
+            />
+            <BookActions bookId={book.id} title={book.title} aladinLink={cleanUrl(book.aladinLink)} watched={watched} />
           </div>
         </div>
       </section>
 
+      <ReadingSection readings={readings} notes={notes} />
+      <PurchaseSection purchases={owned} />
+
+      {watched && (
       <section className="mt-8">
         <div className="mb-2.5 flex items-baseline justify-between">
           <h2 className="text-[15px] font-semibold">관심도서 상태</h2>
@@ -189,6 +211,7 @@ export default async function BookPage({ params }: Params) {
           </div>
         )}
       </section>
+      )}
 
       {book.aladinItemId && (
         <Suspense fallback={<AladinInfoSkeleton />}>

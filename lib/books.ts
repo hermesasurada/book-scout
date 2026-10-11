@@ -121,6 +121,11 @@ export function libraryHref(book: Pick<Book, "libraryLink" | "libraryStatus" | "
   return book.libraryStatus === "available" ? libraryUrl(book.title) : "";
 }
 
+// Aladin serves the same cover at several widths; lists only need a thumbnail.
+export function thumb(url?: string | null) {
+  return (url || "").replace("/cover500/", "/cover200/");
+}
+
 export function won(value?: number | null) {
   return value ? `${value.toLocaleString()}원` : "—";
 }

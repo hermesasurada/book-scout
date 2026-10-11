@@ -16,11 +16,12 @@ import {
   ratingText,
   relativeTime,
   statusTone,
+  thumb,
   usedDiscount,
 } from "../../lib/books";
 import { Icon } from "../components/Icon";
 import { onBooksChanged, toast } from "../components/Toaster";
-import { leaveWatchlist, rememberWatchUrl, takeSavedScroll } from "./watchNav";
+import { leaveList, rememberListUrl, takeSavedScroll } from "../components/listNav";
 
 const PAGE_SIZE = 20;
 // Bump the version whenever the Book shape changes, so readers are not served
@@ -87,7 +88,7 @@ function writeUrlState(state: ListState) {
   if (next !== `${window.location.pathname}${window.location.search}`) {
     window.history.replaceState(window.history.state, "", next);
   }
-  rememberWatchUrl(next);
+  rememberListUrl(next);
 }
 
 export function Watchlist() {
@@ -447,7 +448,7 @@ export function Watchlist() {
 }
 
 function Cover({ book, className }: { book: Book; className: string }) {
-  const image = book.cover ? <img src={book.cover} alt="" loading="lazy" /> : null;
+  const image = book.cover ? <img src={thumb(book.cover)} alt="" loading="lazy" /> : null;
   // The cover opens the Aladin product page (user decision); the title opens
   // the book page inside this site.
   return book.aladinLink ? (
@@ -517,7 +518,7 @@ function BookRow({
     <li className="group relative grid grid-cols-[44px_minmax(0,1fr)] gap-x-4 gap-y-2.5 px-4 py-3 transition-colors hover:bg-sunken/40 md:grid-cols-[44px_minmax(0,1fr)_minmax(0,280px)_68px] md:items-center">
       <Cover book={book} className="h-16 w-11" />
       <div className="min-w-0 pr-16 md:pr-0">
-        <Link href={`/books/${book.id}`} onClick={leaveWatchlist} className="block truncate text-[14.5px] font-semibold hover:underline hover:underline-offset-4">
+        <Link href={`/books/${book.id}`} onClick={leaveList} className="block truncate text-[14.5px] font-semibold hover:underline hover:underline-offset-4">
           {book.title}
         </Link>
         <p className="truncate text-[12.5px] text-muted">
@@ -562,7 +563,7 @@ function BookTile({ book }: { book: Book }) {
   return (
     <li className="min-w-0">
       <Cover book={book} className="aspect-[2/3] w-full rounded-md" />
-      <Link href={`/books/${book.id}`} onClick={leaveWatchlist} className="mt-2.5 line-clamp-2 text-[13.5px] font-semibold leading-snug hover:underline hover:underline-offset-4">
+      <Link href={`/books/${book.id}`} onClick={leaveList} className="mt-2.5 line-clamp-2 text-[13.5px] font-semibold leading-snug hover:underline hover:underline-offset-4">
         {book.title}
       </Link>
       <p className="mt-0.5 truncate text-[12px] text-muted">{book.author}</p>

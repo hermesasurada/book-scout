@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- cover URLs are supplied dynamically by Aladin */
 
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import type { SearchBook } from "../../lib/books";
 import { Icon } from "./Icon";
@@ -9,6 +10,7 @@ import { notifyBooksChanged, toast } from "./Toaster";
 // Global "find a book on Aladin" field. It sits in the header on every page so
 // adding a book is always the first thing under the menu.
 export function AddBookSearch() {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchBook[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -64,6 +66,26 @@ export function AddBookSearch() {
     }
   }
 
+  // Open the book page (reading, owning and watching all start there).
+  async function openBook(book: SearchBook) {
+    setAdding(book.itemId || book.isbn13);
+    try {
+      const response = await fetch("/api/books/resolve", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ itemId: book.itemId }),
+      });
+      const data = (await response.json()) as { bookId?: number; error?: string };
+      if (!response.ok || !data.bookId) throw new Error(data.error ?? "도서 정보를 불러오지 못했습니다.");
+      setResults(null);
+      router.push(`/books/${data.bookId}`);
+    } catch (caught) {
+      toast(caught instanceof Error ? caught.message : "도서 정보를 불러오지 못했습니다.", "error");
+    } finally {
+      setAdding(null);
+    }
+  }
+
   async function addToWatchlist(book: SearchBook) {
     setAdding(book.itemId || book.isbn13);
     try {
@@ -115,12 +137,12 @@ export function AddBookSearch() {
               {results?.map((book) => (
                 <li key={book.itemId || book.isbn13} className="flex items-center gap-3 rounded-lg px-2.5 py-2 hover:bg-sunken">
                   <div className="cover h-[52px] w-9">{book.cover ? <img src={book.cover} alt="" /> : null}</div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[13.5px] font-semibold">{book.title}</p>
-                    <p className="truncate text-[12px] text-muted">
+                  <button className="min-w-0 flex-1 text-left" onClick={() => void openBook(book)} disabled={adding !== null}>
+                    <span className="block truncate text-[13.5px] font-semibold hover:underline hover:underline-offset-4">{book.title}</span>
+                    <span className="block truncate text-[12px] text-muted">
                       {[book.author, book.publisher, book.pubDate?.slice(0, 4)].filter(Boolean).join(" · ")}
-                    </p>
-                  </div>
+                    </span>
+                  </button>
                   <button
                     className="btn h-7 px-2.5 text-[12px]"
                     onClick={() => void addToWatchlist(book)}

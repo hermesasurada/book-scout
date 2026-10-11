@@ -1,9 +1,9 @@
-// Remembers where the reader was in the watchlist so a book page can send
-// them back to the same filter, sort, page and scroll position.
+// Remembers which list (관심도서, 독서 기록, 내 서재) a book page was opened
+// from, so going back lands on the same filter, page and scroll position.
 
-const URL_KEY = "bookscout:watch-url";
-const SCROLL_KEY = "bookscout:watch-scroll";
-const FROM_LIST_KEY = "bookscout:from-watch";
+const URL_KEY = "bookscout:list-url";
+const SCROLL_KEY = "bookscout:list-scroll";
+const FROM_LIST_KEY = "bookscout:from-list";
 
 function session() {
   try {
@@ -13,12 +13,12 @@ function session() {
   }
 }
 
-export function rememberWatchUrl(url: string) {
+export function rememberListUrl(url: string) {
   session()?.setItem(URL_KEY, url);
 }
 
-// Called when a book in the list is opened.
-export function leaveWatchlist() {
+// Called when a book in a list is opened.
+export function leaveList() {
   const store = session();
   if (!store) return;
   const url = `${window.location.pathname}${window.location.search}`;
@@ -27,8 +27,14 @@ export function leaveWatchlist() {
   store.setItem(FROM_LIST_KEY, "1");
 }
 
-export function watchReturnUrl() {
-  return session()?.getItem(URL_KEY) || "/watch";
+export function listReturnUrl() {
+  return session()?.getItem(URL_KEY) || "/reading";
+}
+
+export function listLabel(url: string) {
+  if (url.startsWith("/watch")) return "관심도서";
+  if (url.startsWith("/shelf")) return "내 서재";
+  return "독서 기록";
 }
 
 // True once per visit when the book page was opened from the list, so going

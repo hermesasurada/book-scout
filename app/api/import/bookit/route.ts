@@ -3,6 +3,7 @@ import { getDb } from "../../../../db";
 import { purchases, readingNotes, readings, watchlist } from "../../../../db/schema";
 import { type BookitRecord, parseBookit } from "../../../../lib/bookit";
 import { coreTitle, ensureBookForItem, matchEdition } from "../../../../lib/catalog";
+import { renumberRounds } from "../../../../lib/readingQueries";
 
 type Summary = {
   total: number;
@@ -54,7 +55,10 @@ export async function POST(request: Request) {
       return;
     }
     // Keep a book link made earlier (or by hand); only fill a missing one.
-    const next = { ...values, bookId: existing.bookId ?? values.bookId, matchStatus: existing.bookId ? existing.matchStatus : values.matchStatus };
+    // Rounds are renumbered per book after the import, so they are not compared.
+    const { round: _round, ...rest } = values;
+    void _round;
+    const next = { ...rest, bookId: existing.bookId ?? values.bookId, matchStatus: existing.bookId ? existing.matchStatus : values.matchStatus };
     const changed = (Object.keys(next) as Array<keyof typeof next>).some((key) => (existing as Record<string, unknown>)[key] !== next[key]);
     if (!changed) {
       summary.unchanged += 1;
@@ -142,6 +146,8 @@ export async function POST(request: Request) {
     await db.delete(readings).where(eq(readings.id, row.id));
     summary.removed += 1;
   }
+
+  await renumberRounds(db);
 
   const [{ unmatchedTotal }] = await db
     .select({ unmatchedTotal: sql<number>`count(*)` })

@@ -17,7 +17,7 @@ test("app shell, watchlist and book page are wired", async () => {
 
   assert.match(layout, /lang="ko"/);
   assert.match(layout, /<AppShell>/);
-  assert.match(home, /redirect\("\/watch"\)/);
+  assert.match(home, /redirect\("\/reading"\)/);
   assert.match(watch, /<Watchlist \/>/);
   assert.match(shell, /<AddBookSearch \/>/);
   assert.match(search, /알라딘 검색/);

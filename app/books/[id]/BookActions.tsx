@@ -5,34 +5,38 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../../components/Icon";
 import { toast } from "../../components/Toaster";
-import { consumeCameFromList, watchReturnUrl } from "../../watch/watchNav";
+import { consumeCameFromList, listLabel, listReturnUrl } from "../../components/listNav";
 
 // Back to the list position the reader left (filter, sort, page, scroll).
-// Opened from the list → pop history; a direct visit → the remembered URL.
+// Opened from a list → pop history; a direct visit → the remembered list.
 export function BackLink() {
   const router = useRouter();
   const fromList = useRef(false);
+  const [target, setTarget] = useState("/reading");
   useEffect(() => {
     fromList.current = consumeCameFromList();
+    // Reading browser storage after mount; the label only names the list.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setTarget(listReturnUrl());
   }, []);
   return (
     <Link
-      href="/watch"
+      href={target}
       onClick={(event) => {
         if (event.metaKey || event.ctrlKey || event.shiftKey) return;
         event.preventDefault();
         if (fromList.current) router.back();
-        else router.push(watchReturnUrl());
+        else router.push(target);
       }}
       className="inline-flex items-center gap-1.5 text-[13px] text-muted hover:text-ink"
     >
       <Icon name="arrowLeft" className="size-4" />
-      관심도서
+      {listLabel(target)}
     </Link>
   );
 }
 
-export function BookActions({ bookId, title, aladinLink }: { bookId: number; title: string; aladinLink: string }) {
+export function BookActions({ bookId, title, aladinLink, watched }: { bookId: number; title: string; aladinLink: string; watched: boolean }) {
   const router = useRouter();
   const [checking, setChecking] = useState(false);
 
@@ -55,7 +59,7 @@ export function BookActions({ bookId, title, aladinLink }: { bookId: number; tit
     }
   }
 
-  async function remove() {
+  async function unwatch() {
     if (!window.confirm(`‘${title}’을 관심도서에서 삭제할까요?`)) return;
     const response = await fetch(`/api/books?id=${bookId}`, { method: "DELETE" });
     if (!response.ok) {
@@ -63,25 +67,29 @@ export function BookActions({ bookId, title, aladinLink }: { bookId: number; tit
       return;
     }
     toast("관심도서에서 삭제했습니다.");
-    router.push("/watch");
+    router.refresh();
   }
 
   return (
-    <div className="flex flex-wrap gap-2">
-      <button className="btn btn-primary" onClick={() => void check()} disabled={checking}>
-        <Icon name="refresh" className={checking ? "spin" : undefined} />
-        {checking ? "확인 중…" : "지금 확인"}
-      </button>
+    <>
+      {watched && (
+        <button className="btn" onClick={() => void check()} disabled={checking}>
+          <Icon name="refresh" className={checking ? "spin" : undefined} />
+          {checking ? "확인 중…" : "재고·대출 확인"}
+        </button>
+      )}
       {aladinLink && (
         <a className="btn" href={aladinLink} target="_blank" rel="noreferrer">
           <Icon name="external" />
           알라딘
         </a>
       )}
-      <button className="btn btn-ghost hover:!text-bad" onClick={() => void remove()}>
-        <Icon name="trash" />
-        관심도서에서 삭제
-      </button>
-    </div>
+      {watched && (
+        <button className="btn btn-ghost hover:!text-bad" onClick={() => void unwatch()}>
+          <Icon name="trash" />
+          관심도서에서 삭제
+        </button>
+      )}
+    </>
   );
 }

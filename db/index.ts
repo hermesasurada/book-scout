@@ -152,6 +152,18 @@ const MIGRATIONS: Migration[] = [
       "ALTER TABLE books ADD COLUMN details_at TEXT",
     ],
   },
+  {
+    // Books taken off 내 서재 by hand (given away, sold, a child's book…).
+    // Purchases stay; a later import of the same purchase keeps it hidden.
+    id: 5,
+    name: "shelf-hidden",
+    statements: [
+      `CREATE TABLE shelf_hidden (
+        book_id INTEGER PRIMARY KEY NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+        hidden_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+    ],
+  },
 ];
 
 async function migrate(db: D1Database) {

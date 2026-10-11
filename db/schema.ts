@@ -150,3 +150,9 @@ export const mailImports = sqliteTable("mail_imports", {
   lines: integer("lines").notNull().default(0),
   importedAt: text("imported_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+/** Books removed from 내 서재 by hand; their purchase history is kept. */
+export const shelfHidden = sqliteTable("shelf_hidden", {
+  bookId: integer("book_id").primaryKey().references(() => books.id, { onDelete: "cascade" }),
+  hiddenAt: text("hidden_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});

@@ -3,7 +3,7 @@ import { asc, desc, eq, inArray } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { getDb } from "../../../db";
-import { books, checks, purchases, readingNotes, watchlist } from "../../../db/schema";
+import { books, checks, purchases, readingNotes, shelfHidden, watchlist } from "../../../db/schema";
 import {
   aladinLabels,
   aladinStatusLabel,
@@ -42,7 +42,8 @@ async function loadBook(id: string) {
     ? await db.select().from(readingNotes).where(inArray(readingNotes.readingId, readings.map((reading) => reading.id))).orderBy(asc(readingNotes.page), asc(readingNotes.id))
     : [];
   const owned = await db.select().from(purchases).where(eq(purchases.bookId, bookId)).orderBy(desc(purchases.purchasedAt), desc(purchases.id));
-  return { book, watched: Boolean(watch), history, readings, notes, purchases: owned };
+  const [hidden] = await db.select().from(shelfHidden).where(eq(shelfHidden.bookId, bookId));
+  return { book, watched: Boolean(watch), history, readings, notes, purchases: owned, hiddenFromShelf: Boolean(hidden) };
 }
 
 export async function generateMetadata({ params }: Params) {
@@ -93,7 +94,7 @@ function formatDate(value: string) {
 export default async function BookPage({ params }: Params) {
   const loaded = await loadBook((await params).id);
   if (!loaded) notFound();
-  const { book, watched, history, readings, notes, purchases: owned } = loaded;
+  const { book, watched, history, readings, notes, purchases: owned, hiddenFromShelf } = loaded;
   const latest = history.at(-1);
   const view = {
     ...book,
@@ -152,6 +153,7 @@ export default async function BookPage({ params }: Params) {
               owned={owned.length > 0}
               reading={readings.some((reading) => reading.status === "reading")}
               readBefore={readings.some((reading) => reading.status === "finished")}
+              hiddenFromShelf={hiddenFromShelf}
             />
             <BookActions bookId={book.id} title={book.title} aladinLink={cleanUrl(book.aladinLink)} watched={watched} />
           </div>

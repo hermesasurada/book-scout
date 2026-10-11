@@ -194,6 +194,7 @@ export function LibraryActions({
   owned,
   reading,
   readBefore,
+  hiddenFromShelf,
 }: {
   bookId: number;
   itemId: string;
@@ -204,6 +205,8 @@ export function LibraryActions({
   reading: boolean;
   /** Already read once — starting again is a re-read. */
   readBefore: boolean;
+  /** Owned but taken off 내 서재 by hand. */
+  hiddenFromShelf: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -242,6 +245,26 @@ export function LibraryActions({
           관심도서
         </button>
       )}
+      {owned && !readBefore &&
+        (hiddenFromShelf ? (
+          <button className="btn" disabled={busy} onClick={() => void run(() => send("/api/shelf", "PUT", { bookIds: [bookId] }), "내 서재에 다시 넣었습니다.")}>
+            <Icon name="shelf" />
+            서재에 다시 넣기
+          </button>
+        ) : (
+          <button
+            className="btn btn-ghost hover:!text-bad"
+            disabled={busy}
+            onClick={() => {
+              if (window.confirm(`‘${title}’을 내 서재에서 뺄까요? 구매 이력은 그대로 남습니다.`)) {
+                void run(() => send("/api/shelf", "DELETE", { bookIds: [bookId] }), "내 서재에서 뺐습니다.");
+              }
+            }}
+          >
+            <Icon name="trash" />
+            서재에서 빼기
+          </button>
+        ))}
       {buying && <PurchaseDialog bookId={bookId} title={title} onClose={() => setBuying(false)} />}
     </>
   );

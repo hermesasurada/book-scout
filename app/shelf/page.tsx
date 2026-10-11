@@ -31,7 +31,13 @@ export default async function ShelfPage({ searchParams }: { searchParams: Search
     .innerJoin(books, eq(books.id, purchases.bookId))
     // 내 서재 holds owned books not yet read; a finished book leaves the shelf
     // (its purchase stays on the book page).
-    .where(and(sql`NOT EXISTS (SELECT 1 FROM readings r WHERE r.book_id = ${books.id} AND r.status = 'finished')`))
+    // Books removed from the shelf by hand stay out too.
+    .where(
+      and(
+        sql`NOT EXISTS (SELECT 1 FROM readings r WHERE r.book_id = ${books.id} AND r.status = 'finished')`,
+        sql`NOT EXISTS (SELECT 1 FROM shelf_hidden h WHERE h.book_id = ${books.id})`,
+      ),
+    )
     .groupBy(books.id)
     .orderBy(desc(sql`max(${purchases.purchasedAt})`), desc(books.id));
   const one = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : "");

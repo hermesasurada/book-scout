@@ -2,11 +2,13 @@
 /* eslint-disable @next/next/no-img-element -- cover URLs are supplied dynamically by Aladin */
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { thumb } from "../../lib/books";
 import { dotDate } from "../../lib/readings";
 import { Icon } from "../components/Icon";
 import { leaveList, rememberListUrl } from "../components/listNav";
+import { toast } from "../components/Toaster";
 
 export type ShelfBook = {
   id: number;
@@ -33,7 +35,14 @@ const READ_LABEL: Record<ShelfBook["readState"], string> = { reading: "읽는 �
 
 type Initial = { state: string; channel: string; year: string; q: string };
 
-export function Shelf({ books, initial }: { books: ShelfBook[]; initial: Initial }) {
+export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial: Initial }) {
+  const router = useRouter();
+  // Removed books disappear at once; the server list follows on refresh.
+  const [removed, setRemoved] = useState<Set<number>>(new Set());
+  const books = useMemo(() => loaded.filter((book) => !removed.has(book.id)), [loaded, removed]);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [busy, setBusy] = useState(false);
   const [state, setState] = useState<State>(STATES.some((item) => item.key === initial.state) ? (initial.state as State) : "all");
   const [channel, setChannel] = useState(initial.channel in CHANNELS ? initial.channel : "");
   const [year, setYear] = useState(initial.year);
@@ -69,10 +78,71 @@ export function Shelf({ books, initial }: { books: ShelfBook[]; initial: Initial
     return true;
   });
 
+  async function remove(ids: number[]) {
+    if (!ids.length) return;
+    const first = books.find((book) => book.id === ids[0]);
+    const label = ids.length === 1 && first ? `‘${first.title}’을` : `${ids.length}권을`;
+    if (!window.confirm(`${label} 내 서재에서 뺄까요?\n구매 이력은 도서 페이지에 남고, 거기서 다시 넣을 수 있습니다.`)) return;
+    setBusy(true);
+    try {
+      const response = await fetch("/api/shelf", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ bookIds: ids }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error);
+      setRemoved((current) => new Set([...current, ...ids]));
+      setSelected(new Set());
+      setSelecting(false);
+      toast(`${ids.length}권을 내 서재에서 뺐습니다.`);
+      router.refresh();
+    } catch (error) {
+      toast(error instanceof Error && error.message ? error.message : "삭제하지 못했습니다.", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggle(id: number) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const allShownSelected = filtered.length > 0 && filtered.every((book) => selected.has(book.id));
+
   return (
     <div>
-      <div className="mb-5">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <h1 className="text-[22px] font-bold tracking-tight">내 서재</h1>
+        {books.length > 0 &&
+          (selecting ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="tabular mr-1 text-[13px] text-muted">{selected.size}권 선택</span>
+              <button
+                className="btn"
+                onClick={() =>
+                  setSelected(allShownSelected ? new Set() : new Set(filtered.map((book) => book.id)))
+                }
+              >
+                {allShownSelected ? "선택 해제" : "보이는 책 전체 선택"}
+              </button>
+              <button className="btn border-bad text-bad hover:!bg-bad-soft" disabled={busy || selected.size === 0} onClick={() => void remove([...selected])}>
+                <Icon name="trash" />
+                삭제
+              </button>
+              <button className="btn btn-ghost" onClick={() => { setSelecting(false); setSelected(new Set()); }}>취소</button>
+            </div>
+          ) : (
+            <button className="btn" onClick={() => setSelecting(true)}>
+              <Icon name="check" />
+              선택
+            </button>
+          ))}
       </div>
 
       {books.length === 0 ? (
@@ -121,29 +191,63 @@ export function Shelf({ books, initial }: { books: ShelfBook[]; initial: Initial
             <div className="card grid min-h-48 place-items-center p-8 text-center text-[13.5px] text-muted">조건에 맞는 책이 없습니다.</div>
           ) : (
             <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
-              {filtered.map((book) => (
-                <li key={book.id} className="min-w-0">
-                  <Link href={`/books/${book.id}`} onClick={leaveList} className="group block">
-                    <div className="cover relative aspect-[2/3] w-full rounded-md">
-                      {book.cover ? <img src={thumb(book.cover)} alt="" loading="lazy" /> : null}
+              {filtered.map((book) => {
+                const isSelected = selected.has(book.id);
+                const cover = (
+                  <div className={`cover relative aspect-[2/3] w-full rounded-md ${isSelected ? "ring-2 ring-accent ring-offset-2 ring-offset-canvas" : ""}`}>
+                    {book.cover ? <img src={thumb(book.cover)} alt="" loading="lazy" /> : null}
+                    <span
+                      className={`absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold ${
+                        book.readState === "reading" ? "bg-warn text-white" : "bg-black/55 text-white"
+                      }`}
+                    >
+                      {READ_LABEL[book.readState]}
+                    </span>
+                    {selecting && (
                       <span
-                        className={`absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold ${
-                          book.readState === "reading" ? "bg-warn text-white" : "bg-black/55 text-white"
+                        className={`absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full border-2 ${
+                          isSelected ? "border-accent bg-accent text-accent-ink" : "border-white bg-black/30 text-transparent"
                         }`}
+                        aria-hidden="true"
                       >
-                        {READ_LABEL[book.readState]}
+                        <Icon name="check" className="size-3.5" />
                       </span>
-                    </div>
-                    <p className="mt-2.5 line-clamp-2 text-[13.5px] font-semibold leading-snug group-hover:underline group-hover:underline-offset-4">{book.title}</p>
-                  </Link>
-                  <p className="mt-0.5 truncate text-[12px] text-muted">{book.author}</p>
-                  <p className="tabular mt-0.5 truncate text-[11.5px] text-faint">
-                    {dotDate(book.purchasedAt)} · {book.channel === "aladin_store" && book.store ? book.store : CHANNELS[book.channel]}
-                    {book.condition === "used" ? " · 중고" : book.condition === "ebook" ? " · eBook" : ""}
-                    {book.purchaseCount > 1 ? ` · ${book.purchaseCount}회 구매` : ""}
-                  </p>
-                </li>
-              ))}
+                    )}
+                  </div>
+                );
+                return (
+                  <li key={book.id} className="group relative min-w-0">
+                    {selecting ? (
+                      <button className="block w-full text-left" onClick={() => toggle(book.id)} aria-pressed={isSelected} aria-label={`${book.title} 선택`}>
+                        {cover}
+                        <p className="mt-2.5 line-clamp-2 text-[13.5px] font-semibold leading-snug">{book.title}</p>
+                      </button>
+                    ) : (
+                      <>
+                        <Link href={`/books/${book.id}`} onClick={leaveList} className="block">
+                          {cover}
+                          <p className="mt-2.5 line-clamp-2 text-[13.5px] font-semibold leading-snug group-hover:underline group-hover:underline-offset-4">{book.title}</p>
+                        </Link>
+                        <button
+                          className="icon-btn danger absolute right-1.5 top-1.5 hidden size-7 bg-surface/90 shadow-sm md:grid md:opacity-0 md:transition-opacity md:group-focus-within:opacity-100 md:group-hover:opacity-100"
+                          onClick={() => void remove([book.id])}
+                          disabled={busy}
+                          aria-label={`${book.title} 내 서재에서 삭제`}
+                          title="내 서재에서 삭제"
+                        >
+                          <Icon name="trash" className="size-3.5" />
+                        </button>
+                      </>
+                    )}
+                    <p className="mt-0.5 truncate text-[12px] text-muted">{book.author}</p>
+                    <p className="tabular mt-0.5 truncate text-[11.5px] text-faint">
+                      {dotDate(book.purchasedAt)} · {book.channel === "aladin_store" && book.store ? book.store : CHANNELS[book.channel]}
+                      {book.condition === "used" ? " · 중고" : book.condition === "ebook" ? " · eBook" : ""}
+                      {book.purchaseCount > 1 ? ` · ${book.purchaseCount}회 구매` : ""}
+                    </p>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </>

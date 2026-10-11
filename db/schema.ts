@@ -134,3 +134,13 @@ export const readingNotes = sqliteTable(
   (table) => [index("reading_notes_reading_idx").on(table.readingId)],
 );
 
+
+/** Purchase e-mails already processed (by Gmail message id). */
+export const mailImports = sqliteTable("mail_imports", {
+  messageId: text("message_id").primaryKey(),
+  /** online | store */
+  kind: text("kind").notNull(),
+  purchasedAt: text("purchased_at").notNull(),
+  lines: integer("lines").notNull().default(0),
+  importedAt: text("imported_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});

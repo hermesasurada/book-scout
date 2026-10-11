@@ -7,3 +7,9 @@ ALADIN_STORE_NAME=분당서현점
 # 아래 두 값을 채우면 hermes 없이 앱이 직접 전송하는 폴백도 동작한다 (선택).
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
+# 구매내역 자동 등록(Gmail 읽기 전용). Google Cloud에서 Gmail API를 켜고 '데스크톱 앱' OAuth
+# 클라이언트를 만든 뒤 아래 두 값을 넣고 `node scripts/gmail-auth.mjs`를 실행하면
+# GMAIL_REFRESH_TOKEN이 자동으로 채워진다.
+GMAIL_CLIENT_ID=
+GMAIL_CLIENT_SECRET=
+GMAIL_REFRESH_TOKEN=

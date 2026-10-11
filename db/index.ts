@@ -124,6 +124,21 @@ const MIGRATIONS: Migration[] = [
       "CREATE INDEX reading_notes_reading_idx ON reading_notes (reading_id)",
     ],
   },
+  {
+    // Purchase e-mails already read, so the daily sync skips them even when
+    // they held no book (envelopes, goods).
+    id: 3,
+    name: "mail-imports",
+    statements: [
+      `CREATE TABLE mail_imports (
+        message_id TEXT PRIMARY KEY NOT NULL,
+        kind TEXT NOT NULL,
+        purchased_at TEXT NOT NULL,
+        lines INTEGER NOT NULL DEFAULT 0,
+        imported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+    ],
+  },
 ];
 
 async function migrate(db: D1Database) {

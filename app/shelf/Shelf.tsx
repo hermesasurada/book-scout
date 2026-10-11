@@ -19,18 +19,17 @@ export type ShelfBook = {
   channel: "aladin_online" | "aladin_store" | "other";
   condition: "new" | "used" | "ebook";
   store: string;
-  readState: "finished" | "reading" | "stopped" | "unread";
+  readState: "reading" | "stopped" | "unread";
 };
 
-type State = "all" | "unread" | "reading" | "finished";
+type State = "all" | "unread" | "reading";
 const STATES: Array<{ key: State; label: string }> = [
   { key: "all", label: "전체" },
   { key: "unread", label: "안 읽음" },
   { key: "reading", label: "읽는 중" },
-  { key: "finished", label: "읽음" },
 ];
 const CHANNELS: Record<ShelfBook["channel"], string> = { aladin_online: "알라딘 온라인", aladin_store: "알라딘 매장", other: "기타" };
-const READ_LABEL: Record<ShelfBook["readState"], string> = { finished: "읽음", reading: "읽는 중", stopped: "중단", unread: "안 읽음" };
+const READ_LABEL: Record<ShelfBook["readState"], string> = { reading: "읽는 중", stopped: "중단", unread: "안 읽음" };
 
 type Initial = { state: string; channel: string; year: string; q: string };
 
@@ -52,11 +51,10 @@ export function Shelf({ books, initial }: { books: ShelfBook[]; initial: Initial
   }, [state, channel, year, q]);
 
   const counts = useMemo(() => {
-    const result: Record<State, number> = { all: books.length, unread: 0, reading: 0, finished: 0 };
+    const result: Record<State, number> = { all: books.length, unread: 0, reading: 0 };
     books.forEach((book) => {
-      if (book.readState === "unread" || book.readState === "stopped") result.unread += 1;
       if (book.readState === "reading") result.reading += 1;
-      if (book.readState === "finished") result.finished += 1;
+      else result.unread += 1;
     });
     return result;
   }, [books]);
@@ -65,7 +63,6 @@ export function Shelf({ books, initial }: { books: ShelfBook[]; initial: Initial
   const filtered = books.filter((book) => {
     if (state === "unread" && !(book.readState === "unread" || book.readState === "stopped")) return false;
     if (state === "reading" && book.readState !== "reading") return false;
-    if (state === "finished" && book.readState !== "finished") return false;
     if (channel && book.channel !== channel) return false;
     if (year && !book.purchasedAt.startsWith(year)) return false;
     if (q.trim() && !`${book.title} ${book.author} ${book.publisher}`.toLowerCase().includes(q.trim().toLowerCase())) return false;
@@ -82,8 +79,8 @@ export function Shelf({ books, initial }: { books: ShelfBook[]; initial: Initial
         <div className="card grid min-h-56 place-items-center p-8 text-center">
           <div>
             <Icon name="shelf" className="mx-auto size-6 text-faint" />
-            <p className="mt-3 text-[14px] font-semibold">아직 구매 이력이 없습니다.</p>
-            <p className="mt-1 text-[12.5px] text-muted">Gmail을 연결하면 알라딘 온라인·매장 구매내역이 자동으로 채워집니다.</p>
+            <p className="mt-3 text-[14px] font-semibold">아직 읽지 않은 소장 도서가 없습니다.</p>
+            <p className="mt-1 text-[12.5px] text-muted">다 읽은 책은 서재에서 빠집니다. Gmail을 연결하면 알라딘 구매내역이 자동으로 채워집니다.</p>
             <Link href="/settings" className="btn mt-4">가져오기 · 설정</Link>
           </div>
         </div>
@@ -131,7 +128,7 @@ export function Shelf({ books, initial }: { books: ShelfBook[]; initial: Initial
                       {book.cover ? <img src={thumb(book.cover)} alt="" loading="lazy" /> : null}
                       <span
                         className={`absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold ${
-                          book.readState === "finished" ? "bg-accent text-accent-ink" : book.readState === "reading" ? "bg-warn text-white" : "bg-black/55 text-white"
+                          book.readState === "reading" ? "bg-warn text-white" : "bg-black/55 text-white"
                         }`}
                       >
                         {READ_LABEL[book.readState]}

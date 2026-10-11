@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import { books, purchases } from "../../db/schema";
 import { Shelf, type ShelfBook } from "./Shelf";
@@ -23,13 +23,15 @@ export default async function ShelfPage({ searchParams }: { searchParams: Search
       condition: sql<string>`(SELECT condition FROM purchases p2 WHERE p2.book_id = ${books.id} ORDER BY p2.purchased_at DESC, p2.id DESC LIMIT 1)`,
       store: sql<string>`(SELECT store FROM purchases p2 WHERE p2.book_id = ${books.id} ORDER BY p2.purchased_at DESC, p2.id DESC LIMIT 1)`,
       readState: sql<string>`CASE
-        WHEN EXISTS (SELECT 1 FROM readings r WHERE r.book_id = ${books.id} AND r.status = 'finished') THEN 'finished'
         WHEN EXISTS (SELECT 1 FROM readings r WHERE r.book_id = ${books.id} AND r.status = 'reading') THEN 'reading'
         WHEN EXISTS (SELECT 1 FROM readings r WHERE r.book_id = ${books.id} AND r.status = 'stopped') THEN 'stopped'
         ELSE 'unread' END`,
     })
     .from(purchases)
     .innerJoin(books, eq(books.id, purchases.bookId))
+    // 내 서재 holds owned books not yet read; a finished book leaves the shelf
+    // (its purchase stays on the book page).
+    .where(and(sql`NOT EXISTS (SELECT 1 FROM readings r WHERE r.book_id = ${books.id} AND r.status = 'finished')`))
     .groupBy(books.id)
     .orderBy(desc(sql`max(${purchases.purchasedAt})`), desc(books.id));
   const one = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : "");

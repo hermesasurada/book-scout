@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
+import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "./globals.css";
+import { AppShell } from "./components/AppShell";
 
 export const metadata: Metadata = {
-  title: "책갈피 | 관심도서 재고·대출 확인",
-  description: "알라딘 중고매장과 도서관의 관심도서 상태를 매일 확인합니다.",
+  title: { default: "책갈피", template: "%s · 책갈피" },
+  description: "관심도서 재고·대출 확인과 독서 기록을 관리합니다.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
@@ -17,7 +19,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body>{children}</body>
+      <body>
+        <AppShell>{children}</AppShell>
+      </body>
     </html>
   );
 }

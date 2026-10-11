@@ -100,34 +100,6 @@ export function byYear(readings: StatReading[]) {
   return result;
 }
 
-const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
-
-export function byWeekday(readings: StatReading[], year: string) {
-  const counts = Array.from({ length: 7 }, () => 0);
-  for (const reading of finishedIn(readings, year)) counts[new Date(`${reading.finishedAt}T00:00:00Z`).getUTCDay()] += 1;
-  return counts.map((value, index) => ({ label: WEEKDAYS[index], value }));
-}
-
-const DURATION_BUCKETS: Array<{ label: string; max: number }> = [
-  { label: "하루", max: 1 },
-  { label: "2–7일", max: 7 },
-  { label: "8–14일", max: 14 },
-  { label: "15–30일", max: 30 },
-  { label: "31–60일", max: 60 },
-  { label: "61일+", max: Infinity },
-];
-
-export function durationBuckets(readings: StatReading[], year: string) {
-  const counts = DURATION_BUCKETS.map(() => 0);
-  for (const reading of finishedIn(readings, year)) {
-    if (!reading.startedAt) continue;
-    const days = daysInclusive(reading.startedAt, reading.finishedAt!);
-    if (days < 1) continue;
-    counts[DURATION_BUCKETS.findIndex((bucket) => days <= bucket.max)] += 1;
-  }
-  return DURATION_BUCKETS.map((bucket, index) => ({ label: bucket.label, value: counts[index] }));
-}
-
 function topCounts(values: string[], limit: number) {
   const map = new Map<string, number>();
   values.filter(Boolean).forEach((value) => map.set(value, (map.get(value) ?? 0) + 1));
@@ -149,23 +121,6 @@ export function topCategories(readings: StatReading[], year: string, limit = 8) 
 export function topAuthors(readings: StatReading[], year: string, limit = 8) {
   const list = topCounts(finishedForTaste(readings, year).map((reading) => primaryAuthor(reading.author)), limit);
   return list.filter((item) => item.value > 1);
-}
-
-/** Books in progress per day (start..finish/stop, or today while reading). */
-export function activeDays(readings: StatReading[], from: string, to: string, today: string) {
-  const counts = new Map<string, number>();
-  for (const reading of readings) {
-    if (!reading.startedAt || reading.datesUnknown) continue;
-    const end = reading.status === "finished" ? reading.finishedAt : reading.status === "stopped" ? reading.stoppedAt : today;
-    if (!end) continue;
-    const start = reading.startedAt > from ? reading.startedAt : from;
-    const stop = end < to ? end : to;
-    for (let day = Date.parse(start); day <= Date.parse(stop); day += DAY) {
-      const key = new Date(day).toISOString().slice(0, 10);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-  }
-  return counts;
 }
 
 export function rereads(readings: StatReading[]) {

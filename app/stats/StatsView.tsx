@@ -3,11 +3,8 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
-  activeDays,
   byMonth,
-  byWeekday,
   byYear,
-  durationBuckets,
   rereads,
   type StatReading,
   statYears,
@@ -29,19 +26,9 @@ export function StatsView({ readings, today, initialYear }: { readings: StatRead
 
   const stats = useMemo(() => summary(readings, year, today), [readings, year, today]);
   const trend = useMemo(() => (year ? byMonth(readings, year) : byYear(readings)), [readings, year]);
-  const durations = useMemo(() => durationBuckets(readings, year), [readings, year]);
-  const weekdays = useMemo(() => byWeekday(readings, year), [readings, year]);
   const categories = useMemo(() => topCategories(readings, year), [readings, year]);
   const authors = useMemo(() => topAuthors(readings, year), [readings, year]);
   const again = useMemo(() => rereads(readings), [readings]);
-  // The heatmap covers the chosen year, or the last 12 months for "전체".
-  const range = useMemo(() => {
-    if (year) return { from: `${year}-01-01`, to: year === today.slice(0, 4) ? today : `${year}-12-31` };
-    const from = new Date(Date.parse(today) - 364 * 86400000).toISOString().slice(0, 10);
-    return { from, to: today };
-  }, [year, today]);
-  const active = useMemo(() => activeDays(readings, range.from, range.to, today), [readings, range, today]);
-
   if (!years.length) {
     return (
       <div>
@@ -93,17 +80,7 @@ export function StatsView({ readings, today, initialYear }: { readings: StatRead
         <Columns data={trend} unit="권" />
       </Card>
 
-      <Card title="독서 잔디" subtitle={year ? `${year}년 · 하루에 읽고 있던 책 수` : "최근 1년 · 하루에 읽고 있던 책 수"}>
-        <Heatmap counts={active} from={range.from} to={range.to} />
-      </Card>
-
       <div className="grid gap-x-4 lg:grid-cols-2">
-        <Card title="완독까지 걸린 기간" subtitle="시작일부터 완독일까지">
-          <Columns data={durations} unit="권" compact />
-        </Card>
-        <Card title="완독한 요일">
-          <Columns data={weekdays} unit="권" compact />
-        </Card>
         <Card title="많이 읽은 분야" subtitle="알라딘 분류 기준">
           <Bars data={categories} unit="권" empty="분류 정보가 있는 완독 기록이 없습니다." />
         </Card>
@@ -160,11 +137,11 @@ function niceMax(value: number) {
 
 // Column chart: one series, accent bars ≤24px wide with a 4px rounded cap,
 // a recessive grid, the peak labelled and every bar in the hover tooltip.
-function Columns({ data, unit, compact }: { data: Datum[]; unit: string; compact?: boolean }) {
+function Columns({ data, unit }: { data: Datum[]; unit: string }) {
   const [hover, setHover] = useState<number | null>(null);
   const max = niceMax(Math.max(0, ...data.map((item) => item.value)));
   const peak = data.reduce((best, item, index) => (item.value > data[best].value ? index : best), 0);
-  const height = compact ? 120 : 168;
+  const height = 168;
   return (
     <div>
       <div className="relative flex" style={{ height: height + 22 }}>
@@ -245,59 +222,5 @@ function Bars({ data, unit, empty }: { data: Datum[]; unit: string; empty: strin
         </li>
       ))}
     </ul>
-  );
-}
-
-const STEPS = ["var(--sunken)", "color-mix(in oklab, var(--accent) 35%, var(--surface))", "color-mix(in oklab, var(--accent) 65%, var(--surface))", "var(--accent)"];
-
-// GitHub-style grid: one column per week, Sunday on top; the shade is how
-// many books were in progress that day (0, 1, 2, 3+).
-function Heatmap({ counts, from, to }: { counts: Map<string, number>; from: string; to: string }) {
-  const [hover, setHover] = useState<{ day: string; value: number } | null>(null);
-  const start = new Date(`${from}T00:00:00Z`);
-  start.setUTCDate(start.getUTCDate() - start.getUTCDay());
-  const end = Date.parse(`${to}T00:00:00Z`);
-  const weeks: Array<Array<string | null>> = [];
-  for (let day = start.getTime(); day <= end; day += 7 * 86400000) {
-    weeks.push(
-      Array.from({ length: 7 }, (_, offset) => {
-        const date = new Date(day + offset * 86400000).toISOString().slice(0, 10);
-        return date < from || date > to ? null : date;
-      }),
-    );
-  }
-  const readingDays = [...counts.entries()].filter(([day, value]) => value > 0 && day >= from && day <= to).length;
-  return (
-    <div>
-      <div className="overflow-x-auto pb-1">
-        <div className="flex w-max gap-[3px]">
-          {weeks.map((week, index) => (
-            <div key={index} className="flex flex-col gap-[3px]">
-              {week.map((day, row) => {
-                const value = day ? counts.get(day) ?? 0 : 0;
-                return (
-                  <span
-                    key={row}
-                    className="block size-[11px] rounded-[3px]"
-                    style={{ background: day ? STEPS[Math.min(3, value)] : "transparent" }}
-                    onMouseEnter={() => day && setHover({ day, value })}
-                    onMouseLeave={() => setHover(null)}
-                    onClick={() => day && setHover({ day, value })}
-                  />
-                );
-              })}
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[12px] text-muted">
-        <span className="tabular">{hover ? `${hover.day.replace(/-/g, ".")} · ${hover.value ? `${hover.value}권 읽는 중` : "읽은 책 없음"}` : `책을 읽은 날 ${readingDays}일`}</span>
-        <span className="flex items-center gap-1">
-          적음
-          {STEPS.map((color) => <span key={color} className="block size-[11px] rounded-[3px]" style={{ background: color }} />)}
-          많음
-        </span>
-      </div>
-    </div>
   );
 }

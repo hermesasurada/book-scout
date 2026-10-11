@@ -87,6 +87,8 @@ test("purchase-history CSV: books only, store vs online, used copies", async () 
     "2026-01-05,001-A943118668,돈의 방정식,모건 하우절 / 서삼독,1,25200,,,,",
     '2025-11-18,중고매장(분당서현점),[중고] 반도체 초격차,"마르크 헤잉크 지음, 김장렬 옮김 / 이든하우스",1,16400,0,0,16400,구매완료',
     "2026-04-26,001-A294179258,Project Hail Mary (원서),앤디 위어 / Ballantine Group,1,10800,,,,",
+    "2023-12-15,중고매장(분당서현점),(할인상품) The Blur,민 레 / Alfred A. Knopf,1,8000,0,0,37400,구매완료",
+    "2023-12-15,중고매장(분당서현점),[중고] I Wonder Why : Stars Twinkle,Kingfisher,1,3000,,,,",
   ].join("\n");
   const { lines, skipped } = parseOrderCsv(csv);
   assert.equal(skipped.length, 1);
@@ -99,4 +101,8 @@ test("purchase-history CSV: books only, store vs online, used copies", async () 
   assert.equal(lines[1].condition, "used");
   assert.equal(lines[1].title, "반도체 초격차");
   assert.equal(lines[2].title, "Project Hail Mary");
+  assert.equal(lines[3].title, "The Blur");
+  assert.equal(lines[3].condition, "new");
+  assert.equal(lines[4].author, "Kingfisher");
+  assert.equal(lines[4].publisher, "Kingfisher");
 });

@@ -44,9 +44,12 @@ export default defineConfig(async () => {
   const { cloudflare } = await import("@cloudflare/vite-plugin");
 
   return {
-    server: isCodexSeatbeltSandbox
-      ? { watch: { useFsEvents: false, usePolling: true } }
-      : undefined,
+    server: {
+      // Reached over Tailscale by IP or MagicDNS name (machine.tailnet.ts.net,
+      // or the short machine name); Vite rejects unknown Host headers otherwise.
+      allowedHosts: [".ts.net", "yhandhs-macmini"],
+      ...(isCodexSeatbeltSandbox ? { watch: { useFsEvents: false, usePolling: true } } : {}),
+    },
     plugins: [
       vinext(),
       sites(),

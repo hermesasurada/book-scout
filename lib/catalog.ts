@@ -76,6 +76,13 @@ function score(input: MatchInput, hit: AladinSearchBook) {
   if (format.test(hit.title) && !format.test(input.title)) return 0;
   // "[세트] 제로 투 원 + 경영의 모험" bundles another book.
   if (/^\s*\[세트\]/.test(hit.title) && hit.title.includes("+") && !/세트|set|\+/i.test(input.title)) return 0;
+  // Latin-script series share long common subtitles ("I Wonder Why : … and
+  // Other Questions about …"), so the whole title must agree, not just its head.
+  if (!/[가-힣]/.test(input.title)) {
+    const a = fullTitle(input.title);
+    const b = fullTitle(hit.title);
+    if (!b.startsWith(a) && !a.startsWith(b) && similarity(a, b) < 0.85) return 0;
+  }
   if (fullTitle(input.title) === fullTitle(hit.title)) title = 1.2;
   else if (core && core === hitCore) title = 1;
   else if (core.length >= 4 && (hitCore.startsWith(core) || core.startsWith(hitCore))) title = 0.7;

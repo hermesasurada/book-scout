@@ -8,7 +8,7 @@
 
 - 런타임: [vinext](https://github.com/cloudflare/vinext) (Next.js App Router on Workers) + Cloudflare D1(로컬 sqlite) + Drizzle
 - 서비스: launchd `com.bookscout.server`(상시), `com.bookscout.daily-check`(매일 08:00) — `scripts/install-local-service.sh`
-- 접속: Tailscale 주소 `100.109.86.85:3000` (localhost에는 바인딩하지 않음)
+- 접속: Tailscale `http://yhandhs-macmini.tailb55988.ts.net:3000` 또는 `http://100.109.86.85:3000` (localhost에는 바인딩하지 않음)
 
 ## 데이터
 

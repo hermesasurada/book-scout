@@ -44,6 +44,8 @@ export function parseOrderCsv(text: string): { lines: OrderLine[]; skipped: stri
     }
     const order = get(cells, "주문번호");
     const store = order.match(/^중고매장\((.+)\)$/)?.[1] ?? "";
+    // "저자 / 출판사"; a lone name (e.g. "Kingfisher") may be either, so it is
+    // offered to the matcher as both.
     const cut = byline.lastIndexOf(" / ");
     const quantity = number(get(cells, "수량")) ?? 1;
     const unit = number(get(cells, "단가"));
@@ -52,9 +54,9 @@ export function parseOrderCsv(text: string): { lines: OrderLine[]; skipped: stri
       orderNo: store ? "" : order,
       channel: store ? "aladin_store" : "aladin_online",
       store,
-      title: rawTitle.replace(/^\[중고\]\s*/, "").replace(/\s*\(원서\)\s*$/, "").trim(),
+      title: rawTitle.replace(/^(\[중고\]|\(할인상품\))\s*/, "").replace(/\s*\(원서\)\s*$/, "").trim(),
       author: cut >= 0 ? byline.slice(0, cut).trim() : byline,
-      publisher: cut >= 0 ? byline.slice(cut + 3).trim() : "",
+      publisher: cut >= 0 ? byline.slice(cut + 3).trim() : byline,
       quantity,
       price: unit ? unit * quantity : null,
       condition: /^\[중고\]/.test(rawTitle) ? "used" : "new",

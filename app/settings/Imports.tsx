@@ -202,7 +202,7 @@ export function Imports({ gmailReady, stats }: { gmailReady: boolean; stats: Sta
       <section className="card p-5">
         <h2 className="text-[15px] font-semibold">관심도서 점검</h2>
         <p className="mt-1 text-[13px] text-muted">
-          관심도서 {stats.watchlist.toLocaleString()}권의 알라딘 분당서현점 중고 재고와 용인 보정도서관 대출 가능 여부를 매일 08:00에 확인하고, 새로 생기면 텔레그램으로 알립니다.
+          관심도서 {stats.watchlist.toLocaleString()}권의 알라딘 분당서현점 중고 재고와 용인 보정도서관 대출 가능 여부를 매일 08:00에 확인합니다.
         </p>
       </section>
 

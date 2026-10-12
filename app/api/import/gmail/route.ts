@@ -10,13 +10,6 @@ type RuntimeEnv = { GMAIL_CLIENT_ID?: string; GMAIL_CLIENT_SECRET?: string; GMAI
 
 const QUERY = 'from:no-reply@aladin.co.kr (subject:"주문을 접수하였습니다" OR subject:"중고매장 구매내용")';
 
-function buildMessage(recorded: RecordedPurchase[]) {
-  if (!recorded.length) return "";
-  const lines = [`🛒 새로 등록된 구매 ${recorded.length}권`];
-  for (const item of recorded) lines.push(`• ${item.title}${item.unwatched ? " (관심도서에서 내림)" : ""}`);
-  return lines.join("\n");
-}
-
 // Sync Aladin purchase mails. Body: { days?: number } (default 30) or
 // { all: true } for the one-time backfill. Already-read mails are skipped.
 export async function POST(request: Request) {
@@ -56,7 +49,6 @@ export async function POST(request: Request) {
       parsed,
       added: recorded.length,
       purchases: recorded,
-      message: buildMessage(recorded),
     });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "Gmail 동기화 실패" }, { status: 502 });

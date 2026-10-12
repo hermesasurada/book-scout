@@ -3,10 +3,6 @@
 # 재고를 확인할 알라딘 중고매장 (OffCode / 표시명). Bundang = 분당서현점
 ALADIN_STORE_CODE=Bundang
 ALADIN_STORE_NAME=분당서현점
-# 텔레그램 일일 알림은 check-daily.sh가 `hermes send`로 전송한다(아래 값 불필요).
-# 아래 두 값을 채우면 hermes 없이 앱이 직접 전송하는 폴백도 동작한다 (선택).
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
 # 구매내역 자동 등록(Gmail 읽기 전용). Google Cloud에서 Gmail API를 켜고 '데스크톱 앱' OAuth
 # 클라이언트를 만든 뒤 아래 두 값을 넣고 `node scripts/gmail-auth.mjs`를 실행하면
 # GMAIL_REFRESH_TOKEN이 자동으로 채워진다.

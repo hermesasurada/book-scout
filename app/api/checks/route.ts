@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { books, checks, watchlist } from "../../../db/schema";
 import {
@@ -9,7 +9,6 @@ import {
   checkBojeongLibrary,
   findAladinItemId,
   lookupAladinProduct,
-  sendTelegram,
 } from "../../../lib/providers";
 import { productDetails } from "../../../lib/catalog";
 
@@ -17,46 +16,7 @@ type RuntimeEnv = {
   ALADIN_STORE_CODE?: string;
   ALADIN_STORE_NAME?: string;
   DAILY_CHECK_TOKEN?: string;
-  TELEGRAM_BOT_TOKEN?: string;
-  TELEGRAM_CHAT_ID?: string;
 };
-
-// A book is library-borrowable whether it's the exact edition or a verified
-// different edition of the same work.
-const libraryBorrowable = (status: string) => status === "available" || status === "other_available";
-
-type Transition = {
-  title: string;
-  aladin: boolean;
-  library: boolean;
-  aladinLink: string;
-  aladinPrice: number | null;
-  libraryLink: string;
-};
-
-// Plain-text notification — printed to stdout for the hermes cron to deliver,
-// and usable as-is for a direct Telegram send.
-function buildNotification(transitions: Transition[]): string {
-  const lines = [`📚 오늘 새로 만날 수 있는 책 ${transitions.length}권`];
-  const aladin = transitions.filter((t) => t.aladin);
-  const library = transitions.filter((t) => t.library);
-  if (aladin.length) {
-    lines.push("", "🟢 알라딘 재고");
-    for (const t of aladin) {
-      const price = t.aladinPrice ? ` — ${t.aladinPrice.toLocaleString()}원부터` : "";
-      lines.push(`• ${t.title}${price}`);
-      if (t.aladinLink) lines.push(`  ${t.aladinLink}`);
-    }
-  }
-  if (library.length) {
-    lines.push("", "📖 도서관 대출가능");
-    for (const t of library) {
-      lines.push(`• ${t.title}`);
-      if (t.libraryLink) lines.push(`  ${t.libraryLink}`);
-    }
-  }
-  return lines.join("\n");
-}
 
 export async function GET() {
   const db = await getDb();
@@ -73,25 +33,11 @@ export async function POST(request: Request) {
   const payload = (await request.json().catch(() => ({}))) as {
     bookId?: number;
     coversOnly?: boolean;
-    notify?: boolean;
   };
   const db = await getDb();
   // Only watched books are checked; owned or merely-read books are not.
   const watched = db.select({ book: books }).from(watchlist).innerJoin(books, eq(books.id, watchlist.bookId));
   const targets = (payload.bookId ? await watched.where(eq(books.id, payload.bookId)) : await watched).map((row) => row.book);
-
-  // Snapshot each book's most recent (i.e. previous-run / yesterday) status so
-  // we can detect books that just gained Aladin stock or library availability.
-  const notify = Boolean(payload.notify) && !payload.bookId;
-  const previous = new Map<number, { aladinStatus: string; libraryStatus: string }>();
-  if (notify) {
-    const rows = await db
-      .select({ bookId: checks.bookId, aladinStatus: checks.aladinStatus, libraryStatus: checks.libraryStatus })
-      .from(checks)
-      .where(sql`${checks.id} IN (SELECT MAX(id) FROM checks GROUP BY book_id)`);
-    for (const row of rows) previous.set(row.bookId, { aladinStatus: row.aladinStatus, libraryStatus: row.libraryStatus });
-  }
-  const transitions: Transition[] = [];
 
   // Make sure a book has its Aladin ItemId (parsed from the stored link, or
   // found via a site search for bulk-imported rows), then refresh metadata from
@@ -161,32 +107,7 @@ export async function POST(request: Request) {
       })
       .returning();
     results.push(saved);
-
-    if (notify) {
-      const prev = previous.get(book.id);
-      // Only flag genuine transitions against a known previous state.
-      const aladinNew = aladin.status === "in_stock" && prev !== undefined && prev.aladinStatus !== "in_stock";
-      const libraryNew =
-        libraryBorrowable(library.status) && prev !== undefined && !libraryBorrowable(prev.libraryStatus);
-      if (aladinNew || libraryNew) {
-        transitions.push({
-          title: book.title,
-          aladin: aladinNew,
-          library: libraryNew,
-          aladinLink: aladin.link || book.aladinLink,
-          aladinPrice: aladin.price,
-          libraryLink: library.link,
-        });
-      }
-    }
   }
 
-  // The daily cron prints `message` to stdout for the hermes gateway to deliver.
-  // A direct send also fires if a Telegram token is configured on this app.
-  const message = notify && transitions.length > 0 ? buildNotification(transitions) : "";
-  let notified = false;
-  if (message) {
-    notified = await sendTelegram(runtime.TELEGRAM_BOT_TOKEN, runtime.TELEGRAM_CHAT_ID, message);
-  }
-  return Response.json({ checked: results.length, transitions: transitions.length, notified, message });
+  return Response.json({ checked: results.length });
 }

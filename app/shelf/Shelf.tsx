@@ -31,16 +31,17 @@ const STATES: Array<{ key: State; label: string }> = [
   { key: "reading", label: "읽는 중" },
 ];
 const CHANNELS: Record<ShelfBook["channel"], string> = { aladin_online: "알라딘 온라인", aladin_store: "알라딘 매장", other: "기타" };
-const READ_LABEL: Record<ShelfBook["readState"], string> = { reading: "읽는 중", stopped: "중단", unread: "안 읽음" };
 
 type Initial = { state: string; channel: string; year: string; q: string };
 type View = "grid" | "list";
 const VIEW_KEY = "bookscout:shelf-view";
 
+// Shown under each book: purchase date and copy type only. Store/channel and
+// read state are filters, not per-book labels (user decision).
 function purchaseNote(book: ShelfBook) {
-  return `${dotDate(book.purchasedAt)} · ${book.channel === "aladin_store" && book.store ? book.store : CHANNELS[book.channel]}${
-    book.condition === "used" ? " · 중고" : book.condition === "ebook" ? " · eBook" : ""
-  }${book.purchaseCount > 1 ? ` · ${book.purchaseCount}회 구매` : ""}`;
+  return `${dotDate(book.purchasedAt)} 구매${book.condition === "used" ? " · 중고" : book.condition === "ebook" ? " · eBook" : ""}${
+    book.purchaseCount > 1 ? ` · ${book.purchaseCount}회 구매` : ""
+  }`;
 }
 
 export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial: Initial }) {
@@ -239,9 +240,6 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
                     <span className="tabular block truncate text-[12px] text-faint">{purchaseNote(book)}</span>
                   </span>
                 );
-                const badge = (
-                  <span className={`chip shrink-0 ${book.readState === "reading" ? "text-warn" : ""}`}>{READ_LABEL[book.readState]}</span>
-                );
                 return (
                   <li key={book.id} className={`group relative transition-colors ${isSelected ? "bg-accent-soft" : "hover:bg-sunken/40"}`}>
                     {selecting ? (
@@ -254,7 +252,6 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
                         </span>
                         {cover}
                         {text}
-                        {badge}
                       </button>
                     ) : (
                       <div className="flex items-center gap-3.5 px-4 py-3">
@@ -262,7 +259,6 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
                           {cover}
                           {text}
                         </Link>
-                        {badge}
                         <button
                           className="icon-btn danger md:opacity-0 md:transition-opacity md:group-focus-within:opacity-100 md:group-hover:opacity-100"
                           onClick={() => void remove([book.id])}
@@ -285,13 +281,6 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
                 const cover = (
                   <div className={`cover relative aspect-[2/3] w-full rounded-md ${isSelected ? "ring-2 ring-accent ring-offset-2 ring-offset-canvas" : ""}`}>
                     {book.cover ? <img src={thumb(book.cover)} alt="" loading="lazy" /> : null}
-                    <span
-                      className={`absolute left-1.5 top-1.5 rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold ${
-                        book.readState === "reading" ? "bg-warn text-white" : "bg-black/55 text-white"
-                      }`}
-                    >
-                      {READ_LABEL[book.readState]}
-                    </span>
                     {selecting && (
                       <span
                         className={`absolute right-1.5 top-1.5 grid size-6 place-items-center rounded-full border-2 ${

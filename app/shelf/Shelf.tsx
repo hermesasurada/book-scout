@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { thumb } from "../../lib/books";
 import { dotDate } from "../../lib/readings";
 import { Icon } from "../components/Icon";
@@ -34,6 +34,14 @@ const CHANNELS: Record<ShelfBook["channel"], string> = { aladin_online: "알라�
 const READ_LABEL: Record<ShelfBook["readState"], string> = { reading: "읽는 중", stopped: "중단", unread: "안 읽음" };
 
 type Initial = { state: string; channel: string; year: string; q: string };
+type View = "grid" | "list";
+const VIEW_KEY = "bookscout:shelf-view";
+
+function purchaseNote(book: ShelfBook) {
+  return `${dotDate(book.purchasedAt)} · ${book.channel === "aladin_store" && book.store ? book.store : CHANNELS[book.channel]}${
+    book.condition === "used" ? " · 중고" : book.condition === "ebook" ? " · eBook" : ""
+  }${book.purchaseCount > 1 ? ` · ${book.purchaseCount}회 구매` : ""}`;
+}
 
 export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial: Initial }) {
   const router = useRouter();
@@ -43,6 +51,26 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState<View>("grid");
+
+  // The chosen view is remembered per browser; restore it before paint.
+  useLayoutEffect(() => {
+    try {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (window.localStorage.getItem(VIEW_KEY) === "list") setView("list");
+    } catch {
+      // storage blocked — keep the default
+    }
+  }, []);
+
+  function changeView(next: View) {
+    setView(next);
+    try {
+      window.localStorage.setItem(VIEW_KEY, next);
+    } catch {
+      // non-fatal
+    }
+  }
   const [state, setState] = useState<State>(STATES.some((item) => item.key === initial.state) ? (initial.state as State) : "all");
   const [channel, setChannel] = useState(initial.channel in CHANNELS ? initial.channel : "");
   const [year, setYear] = useState(initial.year);
@@ -184,11 +212,72 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
                   <option key={value} value={value}>{value}년</option>
                 ))}
               </select>
+              <div className="seg ml-auto" role="group" aria-label="보기 방식">
+                <button aria-pressed={view === "list"} onClick={() => changeView("list")} aria-label="목록 보기" title="목록 보기">
+                  <Icon name="list" className="size-4" />
+                </button>
+                <button aria-pressed={view === "grid"} onClick={() => changeView("grid")} aria-label="표지 보기" title="표지 보기">
+                  <Icon name="grid" className="size-4" />
+                </button>
+              </div>
             </div>
           </div>
 
           {filtered.length === 0 ? (
             <div className="card grid min-h-48 place-items-center p-8 text-center text-[13.5px] text-muted">조건에 맞는 책이 없습니다.</div>
+          ) : view === "list" ? (
+            <ul className="card divide-y divide-line overflow-hidden">
+              {filtered.map((book) => {
+                const isSelected = selected.has(book.id);
+                const cover = (
+                  <span className="cover block h-[58px] w-10">{book.cover ? <img src={thumb(book.cover)} alt="" loading="lazy" /> : null}</span>
+                );
+                const text = (
+                  <span className="min-w-0 flex-1">
+                    <span className={`block truncate text-[14px] font-semibold ${selecting ? "" : "group-hover:underline group-hover:underline-offset-4"}`}>{book.title}</span>
+                    <span className="block truncate text-[12.5px] text-muted">{book.author}</span>
+                    <span className="tabular block truncate text-[12px] text-faint">{purchaseNote(book)}</span>
+                  </span>
+                );
+                const badge = (
+                  <span className={`chip shrink-0 ${book.readState === "reading" ? "text-warn" : ""}`}>{READ_LABEL[book.readState]}</span>
+                );
+                return (
+                  <li key={book.id} className={`group relative transition-colors ${isSelected ? "bg-accent-soft" : "hover:bg-sunken/40"}`}>
+                    {selecting ? (
+                      <button className="flex w-full items-center gap-3.5 px-4 py-3 text-left" onClick={() => toggle(book.id)} aria-pressed={isSelected} aria-label={`${book.title} 선택`}>
+                        <span
+                          className={`grid size-5 shrink-0 place-items-center rounded-full border-2 ${isSelected ? "border-accent bg-accent text-accent-ink" : "border-line-strong text-transparent"}`}
+                          aria-hidden="true"
+                        >
+                          <Icon name="check" className="size-3" />
+                        </span>
+                        {cover}
+                        {text}
+                        {badge}
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-3.5 px-4 py-3">
+                        <Link href={`/books/${book.id}`} onClick={leaveList} className="flex min-w-0 flex-1 items-center gap-3.5">
+                          {cover}
+                          {text}
+                        </Link>
+                        {badge}
+                        <button
+                          className="icon-btn danger md:opacity-0 md:transition-opacity md:group-focus-within:opacity-100 md:group-hover:opacity-100"
+                          onClick={() => void remove([book.id])}
+                          disabled={busy}
+                          aria-label={`${book.title} 내 서재에서 삭제`}
+                          title="내 서재에서 삭제"
+                        >
+                          <Icon name="trash" />
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
           ) : (
             <ul className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
               {filtered.map((book) => {
@@ -240,11 +329,7 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
                       </>
                     )}
                     <p className="mt-0.5 truncate text-[12px] text-muted">{book.author}</p>
-                    <p className="tabular mt-0.5 truncate text-[11.5px] text-faint">
-                      {dotDate(book.purchasedAt)} · {book.channel === "aladin_store" && book.store ? book.store : CHANNELS[book.channel]}
-                      {book.condition === "used" ? " · 중고" : book.condition === "ebook" ? " · eBook" : ""}
-                      {book.purchaseCount > 1 ? ` · ${book.purchaseCount}회 구매` : ""}
-                    </p>
+                    <p className="tabular mt-0.5 truncate text-[11.5px] text-faint">{purchaseNote(book)}</p>
                   </li>
                 );
               })}

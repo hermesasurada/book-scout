@@ -18,9 +18,7 @@ export type ShelfBook = {
   cover: string;
   purchasedAt: string;
   purchaseCount: number;
-  channel: "aladin_online" | "aladin_store" | "other";
   condition: "new" | "used" | "ebook";
-  store: string;
   readState: "reading" | "stopped" | "unread";
 };
 
@@ -30,14 +28,13 @@ const STATES: Array<{ key: State; label: string }> = [
   { key: "unread", label: "안 읽음" },
   { key: "reading", label: "읽는 중" },
 ];
-const CHANNELS: Record<ShelfBook["channel"], string> = { aladin_online: "알라딘 온라인", aladin_store: "알라딘 매장", other: "기타" };
 
-type Initial = { state: string; channel: string; year: string; q: string };
+type Initial = { state: string; year: string; q: string };
 type View = "grid" | "list";
 const VIEW_KEY = "bookscout:shelf-view";
 
-// Shown under each book: purchase date and copy type only. Store/channel and
-// read state are filters, not per-book labels (user decision).
+// Shown under each book: purchase date and copy type only. Read state is a
+// filter, not a per-book label; the store is not shown or filtered (user decision).
 function purchaseNote(book: ShelfBook) {
   return `${dotDate(book.purchasedAt)} 구매${book.condition === "used" ? " · 중고" : book.condition === "ebook" ? " · eBook" : ""}${
     book.purchaseCount > 1 ? ` · ${book.purchaseCount}회 구매` : ""
@@ -73,20 +70,18 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
     }
   }
   const [state, setState] = useState<State>(STATES.some((item) => item.key === initial.state) ? (initial.state as State) : "all");
-  const [channel, setChannel] = useState(initial.channel in CHANNELS ? initial.channel : "");
   const [year, setYear] = useState(initial.year);
   const [q, setQ] = useState(initial.q);
 
   useEffect(() => {
     const params = new URLSearchParams();
     if (state !== "all") params.set("state", state);
-    if (channel) params.set("channel", channel);
     if (year) params.set("year", year);
     if (q) params.set("q", q);
     const next = `${window.location.pathname}${params.size ? `?${params}` : ""}`;
     if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, "", next);
     rememberListUrl(next);
-  }, [state, channel, year, q]);
+  }, [state, year, q]);
 
   const counts = useMemo(() => {
     const result: Record<State, number> = { all: books.length, unread: 0, reading: 0 };
@@ -101,7 +96,6 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
   const filtered = books.filter((book) => {
     if (state === "unread" && !(book.readState === "unread" || book.readState === "stopped")) return false;
     if (state === "reading" && book.readState !== "reading") return false;
-    if (channel && book.channel !== channel) return false;
     if (year && !book.purchasedAt.startsWith(year)) return false;
     if (q.trim() && !`${book.title} ${book.author} ${book.publisher}`.toLowerCase().includes(q.trim().toLowerCase())) return false;
     return true;
@@ -196,24 +190,18 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
                 ))}
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative min-w-40 flex-1 sm:max-w-64">
+            <div className="flex items-center gap-2">
+              <div className="relative min-w-0 flex-1 sm:max-w-64">
                 <Icon name="search" className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-faint" />
                 <input className="field w-full pl-8" value={q} onChange={(event) => setQ(event.target.value)} placeholder="서재에서 검색" aria-label="서재에서 검색" />
               </div>
-              <select className="field" value={channel} onChange={(event) => setChannel(event.target.value)} aria-label="구매처">
-                <option value="">전체 구매처</option>
-                {Object.entries(CHANNELS).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </select>
               <select className="field" value={year} onChange={(event) => setYear(event.target.value)} aria-label="구매 연도">
                 <option value="">전체 연도</option>
                 {years.map((value) => (
                   <option key={value} value={value}>{value}년</option>
                 ))}
               </select>
-              <div className="seg ml-auto" role="group" aria-label="보기 방식">
+              <div className="seg ml-auto shrink-0" role="group" aria-label="보기 방식">
                 <button aria-pressed={view === "list"} onClick={() => changeView("list")} aria-label="목록 보기" title="목록 보기">
                   <Icon name="list" className="size-4" />
                 </button>

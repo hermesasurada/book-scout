@@ -108,7 +108,7 @@ test("purchase-history CSV: books only, store vs online, used copies", async () 
   assert.equal(lines[4].publisher, "Kingfisher");
 });
 
-test("reading edit: 날짜 모름 clears the dates", () => {
+test("reading edit: 날짜 모름 clears the dates, 완독 연도만 허용", () => {
   assert.deepEqual(readingPatch({ status: "finished", datesUnknown: true, finishedAt: "2026-10-20" }), {
     status: "finished",
     datesUnknown: true,
@@ -117,4 +117,6 @@ test("reading edit: 날짜 모름 clears the dates", () => {
     stoppedAt: null,
   });
   assert.deepEqual(readingPatch({ datesUnknown: false, startedAt: "2026-10-01" }), { datesUnknown: false, startedAt: "2026-10-01" });
+  assert.deepEqual(readingPatch({ finishedAt: "2019" }), { finishedAt: "2019" });
+  assert.equal(typeof readingPatch({ startedAt: "2019" }), "string");
 });

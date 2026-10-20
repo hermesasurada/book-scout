@@ -53,3 +53,14 @@ test("authors and re-reads", () => {
   assert.deepEqual(topAuthors(rows, ""), [{ label: "홍길동", value: 4 }]);
   assert.deepEqual(rereads(rows), [{ bookId: 1, title: "책", rounds: 2 }]);
 });
+
+test("year-only finishes count toward the year, not months or durations", () => {
+  const withYear = [...rows, r({ bookId: 6, startedAt: null, finishedAt: "2026", pages: 200 }), r({ bookId: 7, startedAt: null, finishedAt: "2025" })];
+  const year = summary(withYear, "2026", "2026-10-11");
+  assert.equal(year.finished, 4);
+  assert.equal(year.pages, 900);
+  assert.equal(year.medianDays, 5.5);
+  assert.equal(year.previousSamePeriod, 1);
+  assert.equal(byMonth(withYear, "2026").reduce((sum, month) => sum + month.value, 0), 3);
+  assert.deepEqual(byYear(withYear), [{ label: "2025", value: 2 }, { label: "2026", value: 4 }]);
+});

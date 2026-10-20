@@ -2,21 +2,31 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { type ReadingStatus, type ReadingView, statusLabels } from "../../lib/readings";
+import { isYearOnly, type ReadingStatus, type ReadingView, statusLabels } from "../../lib/readings";
 import { Icon } from "./Icon";
-import { UnknownToggle } from "./UnknownToggle";
 import { toast } from "./Toaster";
 
-// Edit one reading record in a dialog: status, dates, one-line review, memo
-// and current page.
+type DateMode = "day" | "year" | "unknown";
+const DATE_MODES: Array<{ key: DateMode; label: string }> = [
+  { key: "day", label: "날짜" },
+  { key: "year", label: "연도만" },
+  { key: "unknown", label: "모름" },
+];
+
+// Edit one reading record in a dialog: status, dates (full, finish year only
+// or unknown), one-line review, memo and current page.
 export function ReadingEditor({ reading, onClose }: { reading: ReadingView; onClose: () => void }) {
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
   const [status, setStatus] = useState<ReadingStatus>(reading.status);
   const [startedAt, setStartedAt] = useState(reading.startedAt ?? "");
-  const [finishedAt, setFinishedAt] = useState(reading.finishedAt ?? "");
+  const yearOnly = isYearOnly(reading.finishedAt);
+  const [finishedAt, setFinishedAt] = useState(yearOnly ? "" : (reading.finishedAt ?? ""));
+  const [finishedYear, setFinishedYear] = useState(reading.finishedAt?.slice(0, 4) ?? "");
   const [stoppedAt, setStoppedAt] = useState(reading.stoppedAt ?? "");
-  const [datesUnknown, setDatesUnknown] = useState(reading.datesUnknown);
+  const [chosenMode, setDateMode] = useState<DateMode>(reading.datesUnknown ? "unknown" : yearOnly ? "year" : "day");
+  // "연도만" applies to finished records only.
+  const dateMode: DateMode = chosenMode === "year" && status !== "finished" ? "day" : chosenMode;
   const [review, setReview] = useState(reading.review);
   const [memo, setMemo] = useState(reading.memo);
   const [currentPage, setCurrentPage] = useState(reading.currentPage?.toString() ?? "");
@@ -28,6 +38,11 @@ export function ReadingEditor({ reading, onClose }: { reading: ReadingView; onCl
 
   async function save(event: FormEvent) {
     event.preventDefault();
+    const thisYear = new Date().getFullYear();
+    if (dateMode === "year" && !(/^\d{4}$/.test(finishedYear) && Number(finishedYear) >= 1900 && Number(finishedYear) <= thisYear)) {
+      toast("완독 연도를 네 자리로 입력해 주세요.", "error");
+      return;
+    }
     setSaving(true);
     try {
       const response = await fetch(`/api/readings/${reading.id}`, {
@@ -35,10 +50,10 @@ export function ReadingEditor({ reading, onClose }: { reading: ReadingView; onCl
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           status,
-          datesUnknown,
-          startedAt: datesUnknown ? null : startedAt || null,
-          finishedAt: !datesUnknown && status === "finished" ? finishedAt || null : null,
-          stoppedAt: !datesUnknown && status === "stopped" ? stoppedAt || null : null,
+          datesUnknown: dateMode === "unknown",
+          startedAt: dateMode === "day" ? startedAt || null : null,
+          finishedAt: status !== "finished" ? null : dateMode === "day" ? finishedAt || null : dateMode === "year" ? finishedYear : null,
+          stoppedAt: dateMode === "day" && status === "stopped" ? stoppedAt || null : null,
           review,
           memo,
           currentPage: status === "reading" ? currentPage : null,
@@ -102,42 +117,48 @@ export function ReadingEditor({ reading, onClose }: { reading: ReadingView; onCl
           </div>
 
           <div>
-            <div className="mb-2 flex justify-end">
-              <UnknownToggle checked={datesUnknown} onChange={setDatesUnknown} label="날짜 모름" />
+            <div className="mb-2 flex items-center justify-between text-[12px] text-muted">
+              <span>날짜</span>
+              <div className="seg" role="group" aria-label="날짜 입력 방식">
+                {DATE_MODES.filter((mode) => mode.key !== "year" || status === "finished").map((mode) => (
+                  <button key={mode.key} type="button" aria-pressed={dateMode === mode.key} onClick={() => setDateMode(mode.key)}>
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <label className="block text-[12px] text-muted">
-                시작일
-                <input
-                  type="date"
-                  className="field mt-1 w-full text-ink disabled:opacity-40"
-                  value={datesUnknown ? "" : startedAt}
-                  disabled={datesUnknown}
-                  onChange={(event) => setStartedAt(event.target.value)}
-                />
-              </label>
-              {status === "finished" && (
+              {dateMode === "day" && (
+                <label className="block text-[12px] text-muted">
+                  시작일
+                  <input type="date" className="field mt-1 w-full text-ink" value={startedAt} onChange={(event) => setStartedAt(event.target.value)} />
+                </label>
+              )}
+              {dateMode === "day" && status === "finished" && (
                 <label className="block text-[12px] text-muted">
                   완독일
+                  <input type="date" className="field mt-1 w-full text-ink" value={finishedAt} onChange={(event) => setFinishedAt(event.target.value)} />
+                </label>
+              )}
+              {dateMode === "year" && (
+                <label className="block text-[12px] text-muted">
+                  완독 연도
                   <input
-                    type="date"
-                    className="field mt-1 w-full text-ink disabled:opacity-40"
-                    value={datesUnknown ? "" : finishedAt}
-                    disabled={datesUnknown}
-                    onChange={(event) => setFinishedAt(event.target.value)}
+                    type="number"
+                    min={1900}
+                    max={new Date().getFullYear()}
+                    inputMode="numeric"
+                    className="field mt-1 w-full text-ink"
+                    value={finishedYear}
+                    onChange={(event) => setFinishedYear(event.target.value)}
+                    placeholder="예: 2019"
                   />
                 </label>
               )}
-              {status === "stopped" && (
+              {dateMode === "day" && status === "stopped" && (
                 <label className="block text-[12px] text-muted">
                   중단일
-                  <input
-                    type="date"
-                    className="field mt-1 w-full text-ink disabled:opacity-40"
-                    value={datesUnknown ? "" : stoppedAt}
-                    disabled={datesUnknown}
-                    onChange={(event) => setStoppedAt(event.target.value)}
-                  />
+                  <input type="date" className="field mt-1 w-full text-ink" value={stoppedAt} onChange={(event) => setStoppedAt(event.target.value)} />
                 </label>
               )}
               {status === "reading" && (
@@ -155,7 +176,6 @@ export function ReadingEditor({ reading, onClose }: { reading: ReadingView; onCl
               )}
             </div>
           </div>
-
 
           <label className="block text-[12px] text-muted">
             한줄평

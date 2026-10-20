@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { thumb } from "../../lib/books";
-import { type ReadingView, daysBetween, progress, readingDate, readingPeriod, statusLabels } from "../../lib/readings";
+import { type ReadingView, daysBetween, isYearOnly, progress, readingDate, readingPeriod, statusLabels } from "../../lib/readings";
 import { Icon } from "../components/Icon";
 import { LinkEditionDialog } from "../components/LinkEditionDialog";
 import { leaveList, rememberListUrl } from "../components/listNav";
@@ -281,7 +281,7 @@ const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 // 독서 달력: covers on the day each book was finished.
 function ReadingCalendar({ readings, month, onMonth }: { readings: ReadingView[]; month: string; onMonth: (month: string) => void }) {
-  const finished = readings.filter((reading) => reading.status === "finished" && reading.finishedAt && !reading.datesUnknown);
+  const finished = readings.filter((reading) => reading.status === "finished" && reading.finishedAt && !reading.datesUnknown && !isYearOnly(reading.finishedAt));
   const latest = finished.reduce((max, reading) => (reading.finishedAt! > max ? reading.finishedAt! : max), "");
   const shown = month || (latest ? latest.slice(0, 7) : new Date().toISOString().slice(0, 7));
   const [y, m] = shown.split("-").map(Number);

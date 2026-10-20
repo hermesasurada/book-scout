@@ -28,6 +28,8 @@ export function readingPatch(input: Record<string, unknown>): ReadingPatch | str
     const value = input[key];
     if (value === null || value === "") patch[key] = null;
     else if (isDate(value)) patch[key] = value;
+    // 완독 연도만 아는 기록: "2019".
+    else if (key === "finishedAt" && typeof value === "string" && /^\d{4}$/.test(value)) patch[key] = value;
     else return "날짜 형식이 올바르지 않습니다.";
   }
   if ("datesUnknown" in input) {

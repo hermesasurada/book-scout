@@ -38,7 +38,10 @@ export function primaryAuthor(author: string) {
     .trim();
 }
 
-/** Finished with a real date, optionally within a year ("" = all years). */
+/** A full finish date, not just the year ("2019"). */
+const hasDay = (reading: StatReading) => reading.finishedAt?.length === 10;
+
+/** Finished with a real date (or year), optionally within a year ("" = all years). */
 export function finishedIn(readings: StatReading[], year: string) {
   return readings.filter(
     (reading) => reading.status === "finished" && reading.finishedAt && !reading.datesUnknown && (!year || reading.finishedAt.startsWith(year)),
@@ -47,11 +50,11 @@ export function finishedIn(readings: StatReading[], year: string) {
 
 export function summary(readings: StatReading[], year: string, today: string) {
   const finished = finishedIn(readings, year);
-  const durations = finished.filter((reading) => reading.startedAt).map((reading) => daysInclusive(reading.startedAt!, reading.finishedAt!)).filter((days) => days > 0);
+  const durations = finished.filter((reading) => reading.startedAt && hasDay(reading)).map((reading) => daysInclusive(reading.startedAt!, reading.finishedAt!)).filter((days) => days > 0);
   const withPages = finished.filter((reading) => reading.pages);
   const pages = withPages.reduce((sum, reading) => sum + (reading.pages ?? 0), 0);
   const speeds = withPages
-    .filter((reading) => reading.startedAt)
+    .filter((reading) => reading.startedAt && hasDay(reading))
     .map((reading) => (reading.pages ?? 0) / daysInclusive(reading.startedAt!, reading.finishedAt!))
     .filter((speed) => Number.isFinite(speed) && speed > 0);
   const stopped = readings.filter((reading) => reading.status === "stopped" && (!year || (reading.stoppedAt ?? reading.startedAt ?? "").startsWith(year)));
@@ -62,7 +65,7 @@ export function summary(readings: StatReading[], year: string, today: string) {
   if (year && year === today.slice(0, 4)) {
     const previousYear = String(Number(year) - 1);
     const cutoff = `${previousYear}${today.slice(4)}`;
-    previousSamePeriod = finishedIn(readings, previousYear).filter((reading) => reading.finishedAt! <= cutoff).length;
+    previousSamePeriod = finishedIn(readings, previousYear).filter((reading) => hasDay(reading) && reading.finishedAt! <= cutoff).length;
   }
 
   return {
@@ -80,7 +83,7 @@ export function summary(readings: StatReading[], year: string, today: string) {
 
 export function byMonth(readings: StatReading[], year: string) {
   const counts = Array.from({ length: 12 }, () => 0);
-  for (const reading of finishedIn(readings, year)) counts[Number(reading.finishedAt!.slice(5, 7)) - 1] += 1;
+  for (const reading of finishedIn(readings, year).filter(hasDay)) counts[Number(reading.finishedAt!.slice(5, 7)) - 1] += 1;
   return counts.map((value, index) => ({ label: `${index + 1}월`, value }));
 }
 

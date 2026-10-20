@@ -3,6 +3,7 @@ import test from "node:test";
 import { parsePurchaseMail } from "../lib/aladinMail";
 import { parseBookit, parseCsv, parseRereads } from "../lib/bookit";
 import { authorNames, coreTitle } from "../lib/catalog";
+import { readingPatch } from "../lib/readingInput";
 
 test("CSV: quoted commas, doubled quotes and newlines", () => {
   const rows = parseCsv('"a","b, c","say ""hi""","line1\nline2"\n"x","","",""\n');
@@ -105,4 +106,15 @@ test("purchase-history CSV: books only, store vs online, used copies", async () 
   assert.equal(lines[3].condition, "new");
   assert.equal(lines[4].author, "Kingfisher");
   assert.equal(lines[4].publisher, "Kingfisher");
+});
+
+test("reading edit: 날짜 모름 clears the dates", () => {
+  assert.deepEqual(readingPatch({ status: "finished", datesUnknown: true, finishedAt: "2026-10-20" }), {
+    status: "finished",
+    datesUnknown: true,
+    startedAt: null,
+    finishedAt: null,
+    stoppedAt: null,
+  });
+  assert.deepEqual(readingPatch({ datesUnknown: false, startedAt: "2026-10-01" }), { datesUnknown: false, startedAt: "2026-10-01" });
 });

@@ -9,6 +9,8 @@ export type ReadingPatch = Partial<{
   startedAt: string | null;
   finishedAt: string | null;
   stoppedAt: string | null;
+  /** 날짜 모름: clears the dates. */
+  datesUnknown: boolean;
   review: string;
   memo: string;
   currentPage: number | null;
@@ -27,6 +29,10 @@ export function readingPatch(input: Record<string, unknown>): ReadingPatch | str
     if (value === null || value === "") patch[key] = null;
     else if (isDate(value)) patch[key] = value;
     else return "날짜 형식이 올바르지 않습니다.";
+  }
+  if ("datesUnknown" in input) {
+    patch.datesUnknown = Boolean(input.datesUnknown);
+    if (patch.datesUnknown) Object.assign(patch, { startedAt: null, finishedAt: null, stoppedAt: null });
   }
   if ("review" in input) patch.review = String(input.review ?? "").slice(0, 500);
   if ("memo" in input) patch.memo = String(input.memo ?? "").slice(0, 10000);

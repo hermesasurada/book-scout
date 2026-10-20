@@ -50,7 +50,8 @@ export function readingDate(reading: Pick<ReadingView, "status" | "finishedAt" |
 }
 
 export function readingPeriod(reading: ReadingView) {
-  if (reading.datesUnknown) return "2021년 이전 · 날짜 미상";
+  // 북적북적's 2020-12-31 placeholder dates mean "read before 2021".
+  if (reading.datesUnknown) return reading.source === "bookit" ? "2021년 이전 · 날짜 모름" : "날짜 모름";
   const end = reading.status === "finished" ? reading.finishedAt : reading.status === "stopped" ? reading.stoppedAt : null;
   const days = daysBetween(reading.startedAt, end);
   if (reading.status === "reading") return reading.startedAt ? `${dotDate(reading.startedAt)}부터` : "";

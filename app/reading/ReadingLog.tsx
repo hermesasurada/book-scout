@@ -113,7 +113,7 @@ export function ReadingLog({ readings, initial, today }: { readings: ReadingView
               {years.list.map((value) => (
                 <option key={value} value={value}>{value}년</option>
               ))}
-              {years.unknown && <option value={UNKNOWN}>날짜 미상</option>}
+              {years.unknown && <option value={UNKNOWN}>날짜 모름</option>}
             </select>
           )}
           <div className="seg ml-auto" role="group" aria-label="보기 방식">
@@ -145,7 +145,7 @@ export function ReadingLog({ readings, initial, today }: { readings: ReadingView
           {groups.map(([key, items]) => (
             <section key={key} className="mb-6">
               <h2 className="mb-2 flex items-baseline gap-2 text-[13px] font-semibold text-muted">
-                {key === UNKNOWN ? "2021년 이전 · 날짜 미상" : key ? `${key}년` : "날짜 없음"}
+                {key === UNKNOWN ? "날짜 모름" : key ? `${key}년` : "날짜 없음"}
                 <span className="tabular font-normal text-faint">{items.length}권</span>
               </h2>
               <ul className="card divide-y divide-line overflow-hidden">

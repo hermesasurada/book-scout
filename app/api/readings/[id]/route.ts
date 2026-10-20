@@ -14,9 +14,10 @@ export async function PATCH(request: Request, { params }: Params) {
   const db = await getDb();
   const [current] = await db.select().from(readings).where(eq(readings.id, id));
   if (!current) return Response.json({ error: "기록을 찾지 못했습니다." }, { status: 404 });
-  // Finishing or stopping without a date means today.
-  if (patch.status === "finished" && !("finishedAt" in patch) && !current.finishedAt) patch.finishedAt = today();
-  if (patch.status === "stopped" && !("stoppedAt" in patch) && !current.stoppedAt) patch.stoppedAt = today();
+  // Finishing or stopping without a date means today (unless the dates are unknown).
+  const unknown = patch.datesUnknown ?? current.datesUnknown;
+  if (!unknown && patch.status === "finished" && !("finishedAt" in patch) && !current.finishedAt) patch.finishedAt = today();
+  if (!unknown && patch.status === "stopped" && !("stoppedAt" in patch) && !current.stoppedAt) patch.stoppedAt = today();
   const set: Partial<typeof readings.$inferInsert> = { ...patch };
   if (patch.bookId) {
     // Linking an unmatched record to an edition.
@@ -24,7 +25,7 @@ export async function PATCH(request: Request, { params }: Params) {
     if (!book) return Response.json({ error: "도서를 찾지 못했습니다." }, { status: 404 });
     set.matchStatus = "manual";
   }
-  if (patch.status === "finished" || patch.status === "stopped") set.datesUnknown = current.datesUnknown && !patch.finishedAt;
+  if (!("datesUnknown" in patch) && (patch.status === "finished" || patch.status === "stopped")) set.datesUnknown = current.datesUnknown && !patch.finishedAt;
   const [reading] = await db.update(readings).set({ ...set, updatedAt: sql`CURRENT_TIMESTAMP` }).where(eq(readings.id, id)).returning();
   if (reading.bookId) await renumberRounds(db, reading.bookId);
   if (current.bookId && current.bookId !== reading.bookId) await renumberRounds(db, current.bookId);

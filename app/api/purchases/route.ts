@@ -11,7 +11,9 @@ export async function POST(request: Request) {
   const input = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const bookId = Number(input.bookId);
   if (!Number.isInteger(bookId) || bookId <= 0) return Response.json({ error: "도서가 필요합니다." }, { status: 400 });
-  const purchasedAt = typeof input.purchasedAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.purchasedAt) ? input.purchasedAt : today();
+  // null = 구매일 모름; a missing or malformed date means today.
+  const purchasedAt =
+    input.purchasedAt === null ? null : typeof input.purchasedAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(input.purchasedAt) ? input.purchasedAt : today();
   const channel = CHANNELS.includes(String(input.channel)) ? String(input.channel) : "other";
   const condition = CONDITIONS.includes(String(input.condition)) ? String(input.condition) : "new";
   const price = input.price === "" || input.price == null ? null : Math.max(0, Math.round(Number(input.price))) || null;

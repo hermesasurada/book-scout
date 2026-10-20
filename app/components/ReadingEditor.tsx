@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { type ReadingStatus, type ReadingView, statusLabels } from "../../lib/readings";
 import { Icon } from "./Icon";
+import { UnknownToggle } from "./UnknownToggle";
 import { toast } from "./Toaster";
 
 // Edit one reading record in a dialog: status, dates, one-line review, memo
@@ -15,6 +16,7 @@ export function ReadingEditor({ reading, onClose }: { reading: ReadingView; onCl
   const [startedAt, setStartedAt] = useState(reading.startedAt ?? "");
   const [finishedAt, setFinishedAt] = useState(reading.finishedAt ?? "");
   const [stoppedAt, setStoppedAt] = useState(reading.stoppedAt ?? "");
+  const [datesUnknown, setDatesUnknown] = useState(reading.datesUnknown);
   const [review, setReview] = useState(reading.review);
   const [memo, setMemo] = useState(reading.memo);
   const [currentPage, setCurrentPage] = useState(reading.currentPage?.toString() ?? "");
@@ -33,9 +35,10 @@ export function ReadingEditor({ reading, onClose }: { reading: ReadingView; onCl
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           status,
-          startedAt: startedAt || null,
-          finishedAt: status === "finished" ? finishedAt || null : null,
-          stoppedAt: status === "stopped" ? stoppedAt || null : null,
+          datesUnknown,
+          startedAt: datesUnknown ? null : startedAt || null,
+          finishedAt: !datesUnknown && status === "finished" ? finishedAt || null : null,
+          stoppedAt: !datesUnknown && status === "stopped" ? stoppedAt || null : null,
           review,
           memo,
           currentPage: status === "reading" ? currentPage : null,
@@ -98,36 +101,59 @@ export function ReadingEditor({ reading, onClose }: { reading: ReadingView; onCl
             ))}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block text-[12px] text-muted">
-              시작일
-              <input type="date" className="field mt-1 w-full text-ink" value={startedAt} onChange={(event) => setStartedAt(event.target.value)} />
-            </label>
-            {status === "finished" && (
+          <div>
+            <div className="mb-2 flex justify-end">
+              <UnknownToggle checked={datesUnknown} onChange={setDatesUnknown} label="날짜 모름" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <label className="block text-[12px] text-muted">
-                완독일
-                <input type="date" className="field mt-1 w-full text-ink" value={finishedAt} onChange={(event) => setFinishedAt(event.target.value)} />
-              </label>
-            )}
-            {status === "stopped" && (
-              <label className="block text-[12px] text-muted">
-                중단일
-                <input type="date" className="field mt-1 w-full text-ink" value={stoppedAt} onChange={(event) => setStoppedAt(event.target.value)} />
-              </label>
-            )}
-            {status === "reading" && (
-              <label className="block text-[12px] text-muted">
-                읽은 쪽{reading.pages ? ` / ${reading.pages}` : ""}
+                시작일
                 <input
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  className="field mt-1 w-full text-ink"
-                  value={currentPage}
-                  onChange={(event) => setCurrentPage(event.target.value)}
+                  type="date"
+                  className="field mt-1 w-full text-ink disabled:opacity-40"
+                  value={datesUnknown ? "" : startedAt}
+                  disabled={datesUnknown}
+                  onChange={(event) => setStartedAt(event.target.value)}
                 />
               </label>
-            )}
+              {status === "finished" && (
+                <label className="block text-[12px] text-muted">
+                  완독일
+                  <input
+                    type="date"
+                    className="field mt-1 w-full text-ink disabled:opacity-40"
+                    value={datesUnknown ? "" : finishedAt}
+                    disabled={datesUnknown}
+                    onChange={(event) => setFinishedAt(event.target.value)}
+                  />
+                </label>
+              )}
+              {status === "stopped" && (
+                <label className="block text-[12px] text-muted">
+                  중단일
+                  <input
+                    type="date"
+                    className="field mt-1 w-full text-ink disabled:opacity-40"
+                    value={datesUnknown ? "" : stoppedAt}
+                    disabled={datesUnknown}
+                    onChange={(event) => setStoppedAt(event.target.value)}
+                  />
+                </label>
+              )}
+              {status === "reading" && (
+                <label className="block text-[12px] text-muted">
+                  읽은 쪽{reading.pages ? ` / ${reading.pages}` : ""}
+                  <input
+                    type="number"
+                    min={0}
+                    inputMode="numeric"
+                    className="field mt-1 w-full text-ink"
+                    value={currentPage}
+                    onChange={(event) => setCurrentPage(event.target.value)}
+                  />
+                </label>
+              )}
+            </div>
           </div>
 
 

@@ -109,7 +109,8 @@ export const purchases = sqliteTable(
   {
     id: integer("id").primaryKey({ autoIncrement: true }),
     bookId: integer("book_id").notNull().references(() => books.id, { onDelete: "cascade" }),
-    purchasedAt: text("purchased_at").notNull(),
+    /** null = 구매일 모름 */
+    purchasedAt: text("purchased_at"),
     /** aladin_online | aladin_store | other */
     channel: text("channel").notNull(),
     store: text("store").notNull().default(""),

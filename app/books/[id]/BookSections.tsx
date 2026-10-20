@@ -7,11 +7,12 @@ import { dotDate } from "../../../lib/readings";
 import { Icon } from "../../components/Icon";
 import { ReadingEditor } from "../../components/ReadingEditor";
 import { toast } from "../../components/Toaster";
+import { UnknownToggle } from "../../components/UnknownToggle";
 
 export type NoteView = { id: number; readingId: number; page: number | null; quote: string; memo: string; createdAt: string };
 export type PurchaseView = {
   id: number;
-  purchasedAt: string;
+  purchasedAt: string | null;
   channel: string;
   store: string;
   condition: string;
@@ -167,7 +168,7 @@ export function PurchaseSection({ purchases }: { purchases: PurchaseView[] }) {
       <ul className="card divide-y divide-line">
         {purchases.map((purchase) => (
           <li key={purchase.id} className="group flex items-center gap-3 px-4 py-2.5 text-[13px]">
-            <span className="tabular w-[86px] shrink-0 text-muted">{dotDate(purchase.purchasedAt)}</span>
+            <span className="tabular w-[86px] shrink-0 text-muted">{purchase.purchasedAt ? dotDate(purchase.purchasedAt) : "날짜 모름"}</span>
             <span className="min-w-0 flex-1 truncate">
               {purchase.channel === "aladin_store" && purchase.store ? `알라딘 ${purchase.store}` : CHANNELS[purchase.channel] ?? purchase.channel}
               <span className="text-muted"> · {CONDITIONS[purchase.condition] ?? purchase.condition}</span>
@@ -274,6 +275,7 @@ function PurchaseDialog({ bookId, title, onClose }: { bookId: number; title: str
   const router = useRouter();
   const dialog = useRef<HTMLDialogElement>(null);
   const [purchasedAt, setPurchasedAt] = useState(() => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10));
+  const [dateUnknown, setDateUnknown] = useState(false);
   const [channel, setChannel] = useState("other");
   const [condition, setCondition] = useState("new");
   const [price, setPrice] = useState("");
@@ -287,7 +289,7 @@ function PurchaseDialog({ bookId, title, onClose }: { bookId: number; title: str
     event.preventDefault();
     setSaving(true);
     try {
-      await send("/api/purchases", "POST", { bookId, purchasedAt, channel, condition, price });
+      await send("/api/purchases", "POST", { bookId, purchasedAt: dateUnknown ? null : purchasedAt, channel, condition, price });
       toast("소장 도서로 등록했습니다.");
       router.refresh();
       dialog.current?.close();
@@ -312,10 +314,20 @@ function PurchaseDialog({ bookId, title, onClose }: { bookId: number; title: str
           <p className="mt-1 text-[12px] text-muted">알라딘에서 산 책은 Gmail 연동으로 자동 등록됩니다. 다른 곳에서 샀거나 원래 갖고 있던 책을 여기서 등록하세요.</p>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <label className="block text-[12px] text-muted">
-            구매일
-            <input type="date" className="field mt-1 w-full text-ink" value={purchasedAt} onChange={(event) => setPurchasedAt(event.target.value)} />
-          </label>
+          <div className="text-[12px] text-muted">
+            <div className="flex items-center justify-between">
+              <span>구매일</span>
+              <UnknownToggle checked={dateUnknown} onChange={setDateUnknown} />
+            </div>
+            <input
+              type="date"
+              className="field mt-1 w-full text-ink disabled:opacity-40"
+              value={dateUnknown ? "" : purchasedAt}
+              disabled={dateUnknown}
+              aria-label="구매일"
+              onChange={(event) => setPurchasedAt(event.target.value)}
+            />
+          </div>
           <label className="block text-[12px] text-muted">
             가격(선택)
             <input className="field mt-1 w-full text-ink" inputMode="numeric" value={price} onChange={(event) => setPrice(event.target.value)} placeholder="원" />

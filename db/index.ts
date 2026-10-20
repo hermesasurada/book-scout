@@ -164,6 +164,33 @@ const MIGRATIONS: Migration[] = [
       )`,
     ],
   },
+  {
+    // 구매일 "모름": purchased_at becomes nullable (SQLite needs a table rebuild).
+    id: 6,
+    name: "purchase-date-unknown",
+    statements: [
+      `CREATE TABLE purchases_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+        book_id INTEGER NOT NULL REFERENCES books(id) ON DELETE CASCADE,
+        purchased_at TEXT,
+        channel TEXT NOT NULL,
+        store TEXT NOT NULL DEFAULT '',
+        condition TEXT NOT NULL DEFAULT 'new',
+        price INTEGER,
+        quantity INTEGER NOT NULL DEFAULT 1,
+        order_no TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT 'manual',
+        source_key TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `INSERT INTO purchases_new (id, book_id, purchased_at, channel, store, condition, price, quantity, order_no, source, source_key, created_at)
+        SELECT id, book_id, purchased_at, channel, store, condition, price, quantity, order_no, source, source_key, created_at FROM purchases`,
+      "DROP TABLE purchases",
+      "ALTER TABLE purchases_new RENAME TO purchases",
+      "CREATE UNIQUE INDEX purchases_source_key ON purchases (source, source_key)",
+      "CREATE INDEX purchases_book_idx ON purchases (book_id)",
+    ],
+  },
 ];
 
 async function migrate(db: D1Database) {

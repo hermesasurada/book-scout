@@ -16,7 +16,8 @@ export type ShelfBook = {
   author: string;
   publisher: string;
   cover: string;
-  purchasedAt: string;
+  /** null = 구매일 모름 */
+  purchasedAt: string | null;
   purchaseCount: number;
   condition: "new" | "used" | "ebook";
   readState: "reading" | "stopped" | "unread";
@@ -31,12 +32,13 @@ const STATES: Array<{ key: State; label: string }> = [
 
 type Initial = { state: string; year: string; q: string };
 type View = "grid" | "list";
+const UNKNOWN = "unknown";
 const VIEW_KEY = "bookscout:shelf-view";
 
 // Shown under each book: purchase date and copy type only. Read state is a
 // filter, not a per-book label; the store is not shown or filtered (user decision).
 function purchaseNote(book: ShelfBook) {
-  return `${dotDate(book.purchasedAt)} 구매${book.condition === "used" ? " · 중고" : book.condition === "ebook" ? " · eBook" : ""}${
+  return `${book.purchasedAt ? `${dotDate(book.purchasedAt)} 구매` : "구매일 모름"}${book.condition === "used" ? " · 중고" : book.condition === "ebook" ? " · eBook" : ""}${
     book.purchaseCount > 1 ? ` · ${book.purchaseCount}회 구매` : ""
   }`;
 }
@@ -91,12 +93,13 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
     });
     return result;
   }, [books]);
-  const years = useMemo(() => [...new Set(books.map((book) => book.purchasedAt.slice(0, 4)))].sort().reverse(), [books]);
+  const years = useMemo(() => [...new Set(books.flatMap((book) => (book.purchasedAt ? [book.purchasedAt.slice(0, 4)] : [])))].sort().reverse(), [books]);
+  const someUnknown = books.some((book) => !book.purchasedAt);
 
   const filtered = books.filter((book) => {
     if (state === "unread" && !(book.readState === "unread" || book.readState === "stopped")) return false;
     if (state === "reading" && book.readState !== "reading") return false;
-    if (year && !book.purchasedAt.startsWith(year)) return false;
+    if (year === UNKNOWN ? book.purchasedAt : year && !book.purchasedAt?.startsWith(year)) return false;
     if (q.trim() && !`${book.title} ${book.author} ${book.publisher}`.toLowerCase().includes(q.trim().toLowerCase())) return false;
     return true;
   });
@@ -200,6 +203,7 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
                 {years.map((value) => (
                   <option key={value} value={value}>{value}년</option>
                 ))}
+                {someUnknown && <option value={UNKNOWN}>구매일 모름</option>}
               </select>
               <div className="seg ml-auto shrink-0" role="group" aria-label="보기 방식">
                 <button aria-pressed={view === "list"} onClick={() => changeView("list")} aria-label="목록 보기" title="목록 보기">

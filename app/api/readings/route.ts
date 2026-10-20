@@ -1,6 +1,6 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { books, readings } from "../../../db/schema";
+import { books, readings, watchlist } from "../../../db/schema";
 import { readingPatch, today } from "../../../lib/readingInput";
 
 // Start a reading (or record a finished one) for a catalog book.
@@ -42,5 +42,7 @@ export async function POST(request: Request) {
       source: "manual",
     })
     .returning();
+  // Finished books are not watched.
+  if (reading.status === "finished") await db.delete(watchlist).where(eq(watchlist.bookId, bookId));
   return Response.json({ reading }, { status: 201 });
 }

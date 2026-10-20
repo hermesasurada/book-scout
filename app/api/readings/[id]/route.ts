@@ -1,6 +1,6 @@
 import { eq, sql } from "drizzle-orm";
 import { getDb } from "../../../../db";
-import { books, readings } from "../../../../db/schema";
+import { books, readings, watchlist } from "../../../../db/schema";
 import { readingPatch, today } from "../../../../lib/readingInput";
 import { renumberRounds } from "../../../../lib/readingQueries";
 
@@ -29,6 +29,8 @@ export async function PATCH(request: Request, { params }: Params) {
   const [reading] = await db.update(readings).set({ ...set, updatedAt: sql`CURRENT_TIMESTAMP` }).where(eq(readings.id, id)).returning();
   if (reading.bookId) await renumberRounds(db, reading.bookId);
   if (current.bookId && current.bookId !== reading.bookId) await renumberRounds(db, current.bookId);
+  // Finished books are not watched.
+  if (reading.status === "finished" && reading.bookId) await db.delete(watchlist).where(eq(watchlist.bookId, reading.bookId));
   return Response.json({ reading });
 }
 

@@ -1,40 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { parsePurchaseMail } from "../lib/aladinMail";
-import { parseBookit, parseCsv, parseRereads } from "../lib/bookit";
 import { authorNames, coreTitle } from "../lib/catalog";
+import { parseCsv } from "../lib/csv";
 import { readingPatch } from "../lib/readingInput";
 
 test("CSV: quoted commas, doubled quotes and newlines", () => {
   const rows = parseCsv('"a","b, c","say ""hi""","line1\nline2"\n"x","","",""\n');
   assert.deepEqual(rows[0], ["a", "b, c", 'say "hi"', "line1\nline2"]);
   assert.equal(rows.length, 2);
-});
-
-test("북적북적 export: statuses, placeholder dates, re-reads", () => {
-  const csv = [
-    '"인덱스","제목","저자","출판사","독서상태","생성일","시작일","읽은 날짜","중단일","메모1"',
-    '"1","방해자 1","오쿠다 히데오","북스토리","읽은 책","2021-07-17","2020-12-31","2020-12-31","",""',
-    '"2","돈의 심리학","모건 하우절","인플루엔셜(주)","읽은 책","2023-01-24","2023-01-24","2023-01-30","","2회차 24.1.28 완료"',
-    '"3","유클리드의 창","레너드 믈로디노프","까치","읽고 싶은 책","2023-09-08","","","",""',
-    '"4","Stick 스틱!","칩 히스","웅진지식하우스","중단한 책","2024-10-02","2024-10-02","","2024-10-05",""',
-  ].join("\n");
-  const [old, money, want, stopped] = parseBookit(csv);
-  assert.equal(old.status, "finished");
-  assert.equal(old.datesUnknown, false);
-  assert.equal(old.startedAt, null);
-  assert.equal(old.finishedAt, "2020");
-  assert.equal(old.key, "2021-07-17|방해자1");
-  assert.deepEqual(money.rereads, [{ round: 2, finishedAt: "2024-01-28" }]);
-  assert.equal(want.status, "want");
-  assert.equal(stopped.status, "stopped");
-  assert.equal(stopped.stoppedAt, "2024-10-05");
-});
-
-test("re-read notes in the memo", () => {
-  assert.deepEqual(parseRereads("24. 11. 10일 2회차독"), [{ round: 2, finishedAt: "2024-11-10" }]);
-  assert.deepEqual(parseRereads("24.6.18 2회독"), [{ round: 2, finishedAt: "2024-06-18" }]);
-  assert.deepEqual(parseRereads("2권을 기다리자"), []);
 });
 
 test("title core and author names for edition matching", () => {

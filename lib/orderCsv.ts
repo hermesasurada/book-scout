@@ -2,7 +2,7 @@
 // 주문일, 주문번호, 도서명, 저자/출판사, 수량, 단가, 배송비, 할인/적립금, 결제금액, 상태
 // Store purchases carry "중고매장(분당서현점)" in place of an order number.
 // Rows without 저자/출판사 are goods (gifts, envelopes, e-book cash) and skipped.
-import { parseCsv } from "./bookit";
+import { parseCsv } from "./csv";
 
 export type OrderLine = {
   purchasedAt: string;

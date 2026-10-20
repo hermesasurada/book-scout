@@ -1,24 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChangeEvent, useState } from "react";
 import { relativeTime } from "../../lib/books";
 import { Icon } from "../components/Icon";
 import { toast } from "../components/Toaster";
 
-type Stats = { readings: number; unmatched: number; purchases: number; watchlist: number; lastMailImport: string | null };
-type BookitResult = {
-  total: number;
-  created: number;
-  updated: number;
-  unchanged: number;
-  watchAdded: number;
-  removed: number;
-  keptOrphans: number;
-  unmatched: Array<{ title: string; author: string; status: string }>;
-  error?: string;
-};
+type Stats = { purchases: number; watchlist: number; lastMailImport: string | null };
 type OrdersResult = {
   books: number;
   skippedGoods: string[];
@@ -31,10 +19,9 @@ type GmailResult = { found: number; skipped: number; parsed: number; added: numb
 
 export function Imports({ gmailReady, stats }: { gmailReady: boolean; stats: Stats }) {
   const router = useRouter();
-  const [bookit, setBookit] = useState<BookitResult | null>(null);
   const [gmail, setGmail] = useState<GmailResult | null>(null);
   const [orders, setOrders] = useState<OrdersResult | null>(null);
-  const [busy, setBusy] = useState<"bookit" | "gmail" | "orders" | null>(null);
+  const [busy, setBusy] = useState<"gmail" | "orders" | null>(null);
 
   async function importOrders(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -47,25 +34,6 @@ export function Imports({ gmailReady, stats }: { gmailReady: boolean; stats: Sta
       const data = (await response.json()) as OrdersResult;
       if (!response.ok) throw new Error(data.error);
       setOrders(data);
-      router.refresh();
-    } catch (error) {
-      toast(error instanceof Error && error.message ? error.message : "가져오지 못했습니다.", "error");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function importBookit(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-    setBusy("bookit");
-    setBookit(null);
-    try {
-      const response = await fetch("/api/import/bookit", { method: "POST", headers: { "content-type": "text/csv; charset=utf-8" }, body: await file.text() });
-      const data = (await response.json()) as BookitResult;
-      if (!response.ok) throw new Error(data.error);
-      setBookit(data);
       router.refresh();
     } catch (error) {
       toast(error instanceof Error && error.message ? error.message : "가져오지 못했습니다.", "error");
@@ -97,38 +65,6 @@ export function Imports({ gmailReady, stats }: { gmailReady: boolean; stats: Sta
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <h1 className="text-[22px] font-bold tracking-tight">가져오기 · 설정</h1>
-
-      <section className="card p-5">
-        <h2 className="text-[15px] font-semibold">북적북적 독서 기록</h2>
-        <p className="mt-1 text-[13px] text-muted">
-          북적북적에서 내보낸 <code className="rounded bg-sunken px-1">bookit_….csv</code>를 올리세요. 여러 번 올려도 중복되지 않고, 바뀐 상태·날짜·메모만 갱신됩니다. 읽고 싶은 책은 관심도서로 들어갑니다.
-        </p>
-        <p className="mt-2 text-[12.5px] text-faint">
-          현재 독서 기록 {stats.readings.toLocaleString()}건{stats.unmatched ? ` · 판본 미연결 ${stats.unmatched}건` : ""}
-        </p>
-        <label className={`btn btn-primary mt-4 ${busy ? "pointer-events-none opacity-50" : ""}`}>
-          <Icon name="plus" />
-          {busy === "bookit" ? "가져오는 중… (1분 정도)" : "CSV 파일 선택"}
-          <input type="file" accept=".csv,text/csv" className="sr-only-x" onChange={(event) => void importBookit(event)} disabled={busy !== null} />
-        </label>
-        {bookit && (
-          <div className="mt-4 rounded-lg bg-sunken p-3 text-[13px]">
-            <p>
-              {bookit.total}건 중 새로 {bookit.created} · 갱신 {bookit.updated} · 그대로 {bookit.unchanged}
-              {bookit.watchAdded ? ` · 관심도서 추가 ${bookit.watchAdded}` : ""}
-              {bookit.removed ? ` · 삭제 ${bookit.removed}` : ""}
-            </p>
-            {bookit.unmatched.length > 0 && (
-              <div className="mt-2">
-                <p className="text-muted">알라딘 판본을 찾지 못한 기록 — <Link href="/reading" className="underline">독서 기록</Link>에서 ‘판본 연결’로 고를 수 있습니다.</p>
-                <ul className="mt-1 list-disc pl-5 text-muted">
-                  {bookit.unmatched.map((item) => <li key={item.title}>{item.title}</li>)}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-      </section>
 
       <section className="card p-5">
         <h2 className="text-[15px] font-semibold">알라딘 구매내역 (Gmail)</h2>

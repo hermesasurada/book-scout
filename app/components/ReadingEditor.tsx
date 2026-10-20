@@ -101,12 +101,6 @@ export function ReadingEditor({ reading, onClose }: { reading: ReadingView; onCl
           </button>
         </div>
 
-        {reading.source === "bookit" && (
-          <p className="mt-3 rounded-lg bg-sunken px-3 py-2 text-[12px] text-muted">
-            북적북적에서 가져온 기록입니다. 병행하는 동안 상태·날짜·메모는 다음 가져오기 때 북적북적 기준으로 바뀝니다. 한줄평은 유지됩니다.
-          </p>
-        )}
-
         <div className="mt-4 space-y-4">
           <div className="seg w-full" role="group" aria-label="독서 상태">
             {(Object.keys(statusLabels) as ReadingStatus[]).map((key) => (

@@ -79,9 +79,10 @@ export const readings = sqliteTable(
     publisher: text("publisher").notNull().default(""),
     status: text("status").$type<ReadingStatus>().notNull(),
     startedAt: text("started_at"),
+    /** YYYY-MM-DD, or YYYY when only the year is known */
     finishedAt: text("finished_at"),
     stoppedAt: text("stopped_at"),
-    /** Read before records began (북적북적's 2020-12-31 placeholder); no real dates. */
+    /** 날짜 모름: no dates at all. */
     datesUnknown: integer("dates_unknown", { mode: "boolean" }).notNull().default(false),
     round: integer("round").notNull().default(1),
     /** 0.5–5 */
@@ -91,7 +92,7 @@ export const readings = sqliteTable(
     currentPage: integer("current_page"),
     /** matched | unmatched | manual */
     matchStatus: text("match_status").notNull().default("manual"),
-    /** manual | bookit */
+    /** manual | bookit (imported from 북적북적 before that import was removed) */
     source: text("source").notNull().default("manual"),
     sourceKey: text("source_key"),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),

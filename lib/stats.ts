@@ -125,6 +125,24 @@ export function topAuthors(readings: StatReading[], year: string, limit = 8) {
   return list.filter((item) => item.value > 1);
 }
 
+/** Books in progress per day (start..finish/stop, or today while reading). */
+export function activeDays(readings: StatReading[], from: string, to: string, today: string) {
+  const counts = new Map<string, number>();
+  for (const reading of readings) {
+    if (!reading.startedAt || reading.datesUnknown) continue;
+    const end = reading.status === "finished" ? reading.finishedAt : reading.status === "stopped" ? reading.stoppedAt : today;
+    // A finish known only to the year has no span to draw.
+    if (!end || end.length !== 10) continue;
+    const start = reading.startedAt > from ? reading.startedAt : from;
+    const stop = end < to ? end : to;
+    for (let day = Date.parse(start); day <= Date.parse(stop); day += DAY) {
+      const key = new Date(day).toISOString().slice(0, 10);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
 export function rereads(readings: StatReading[]) {
   const map = new Map<string, { bookId: number | null; title: string; rounds: number }>();
   for (const reading of readings) {

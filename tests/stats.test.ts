@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { byMonth, byYear, primaryAuthor, rereads, summary, topAuthors, type StatReading } from "../lib/stats";
+import { activeDays, byMonth, byYear, primaryAuthor, rereads, summary, topAuthors, type StatReading } from "../lib/stats";
 
 const r = (patch: Partial<StatReading>): StatReading => ({
   bookId: 1,
@@ -45,6 +45,13 @@ test("monthly and yearly finishes", () => {
   assert.equal(months[1].value, 1);
   assert.equal(months[4].value, 1);
   assert.deepEqual(byYear(rows), [{ label: "2025", value: 1 }, { label: "2026", value: 3 }]);
+});
+
+test("active days", () => {
+  const days = activeDays(rows, "2026-01-01", "2026-12-31", "2026-10-11");
+  assert.equal(days.get("2026-01-05"), 2); // the finished book and the one later stopped
+  assert.equal(days.get("2026-02-01"), 2);
+  assert.equal(days.has("2025-01-04"), false);
 });
 
 test("authors and re-reads", () => {

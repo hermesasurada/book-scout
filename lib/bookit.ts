@@ -31,6 +31,8 @@ const STATUS: Record<string, BookitStatus> = {
   "읽고 싶은 책": "want",
 };
 
+// 북적북적 records read before 2021 carry 2020-12-31 as both dates; they are
+// kept as finished in 2020, year only (user decision).
 const PLACEHOLDER_DATE = "2020-12-31";
 
 // RFC 4180: quoted fields may contain commas, doubled quotes and newlines.
@@ -113,10 +115,9 @@ export function parseBookit(text: string): BookitRecord[] {
     const createdAt = get(cells, "생성일");
     let startedAt = dateOrNull(get(cells, "시작일"));
     let finishedAt = dateOrNull(get(cells, "읽은 날짜"));
-    const datesUnknown = startedAt === PLACEHOLDER_DATE && finishedAt === PLACEHOLDER_DATE;
-    if (datesUnknown) {
+    if (startedAt === PLACEHOLDER_DATE && finishedAt === PLACEHOLDER_DATE) {
       startedAt = null;
-      finishedAt = null;
+      finishedAt = PLACEHOLDER_DATE.slice(0, 4);
     }
     const memo = get(cells, "메모1");
     return [
@@ -130,7 +131,7 @@ export function parseBookit(text: string): BookitRecord[] {
         startedAt,
         finishedAt,
         stoppedAt: dateOrNull(get(cells, "중단일")),
-        datesUnknown,
+        datesUnknown: false,
         memo,
         rereads: parseRereads(memo),
       },

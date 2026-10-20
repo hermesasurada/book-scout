@@ -21,8 +21,9 @@ test("북적북적 export: statuses, placeholder dates, re-reads", () => {
   ].join("\n");
   const [old, money, want, stopped] = parseBookit(csv);
   assert.equal(old.status, "finished");
-  assert.equal(old.datesUnknown, true);
-  assert.equal(old.finishedAt, null);
+  assert.equal(old.datesUnknown, false);
+  assert.equal(old.startedAt, null);
+  assert.equal(old.finishedAt, "2020");
   assert.equal(old.key, "2021-07-17|방해자1");
   assert.deepEqual(money.rereads, [{ round: 2, finishedAt: "2024-01-28" }]);
   assert.equal(want.status, "want");

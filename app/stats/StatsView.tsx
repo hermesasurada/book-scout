@@ -84,7 +84,7 @@ export function StatsView({ readings, today, initialYear }: { readings: StatRead
         <Tile label="중단" value={`${stats.stopped}권`} note={stats.stopRate != null ? `시작한 책의 ${Math.round(stats.stopRate * 100)}%` : undefined} />
       </div>
 
-      <Card title={year ? "월별 완독" : "연도별 완독"} subtitle={year ? undefined : "날짜 모름 기록 제외"}>
+      <Card title={year ? "월별 완독" : "연도별 완독"} subtitle={!year && stats.undated ? "날짜 모름 기록 제외" : undefined}>
         <Columns data={trend} unit="권" />
       </Card>
 

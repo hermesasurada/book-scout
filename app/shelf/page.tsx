@@ -1,6 +1,8 @@
 import { and, desc, eq, sql } from "drizzle-orm";
+import { cookies } from "next/headers";
 import { getDb } from "../../db";
 import { books, purchases } from "../../db/schema";
+import { SHELF_VIEW_COOKIE, shelfViewFrom } from "../../lib/shelfView";
 import { Shelf, type ShelfBook } from "./Shelf";
 
 export const metadata = { title: "내 서재" };
@@ -38,6 +40,7 @@ export default async function ShelfPage({ searchParams }: { searchParams: Search
     )
     .groupBy(books.id)
     .orderBy(desc(sql`max(${purchases.purchasedAt})`), desc(books.id));
+  const view = shelfViewFrom((await cookies()).get(SHELF_VIEW_COOKIE)?.value);
   const one = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : "");
-  return <Shelf books={rows.map((row) => ({ ...row, purchaseCount: Number(row.purchaseCount) })) as ShelfBook[]} initial={{ state: one("state"), year: one("year"), q: one("q") }} />;
+  return <Shelf books={rows.map((row) => ({ ...row, purchaseCount: Number(row.purchaseCount) })) as ShelfBook[]} initial={{ state: one("state"), year: one("year"), q: one("q"), view }} />;
 }

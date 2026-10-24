@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { thumb } from "../../lib/books";
 import { dotDate } from "../../lib/readings";
+import { SHELF_VIEW_COOKIE, type ShelfView } from "../../lib/shelfView";
 import { Icon } from "../components/Icon";
 import { leaveList, rememberListUrl } from "../components/listNav";
 import { toast } from "../components/Toaster";
@@ -30,10 +31,13 @@ const STATES: Array<{ key: State; label: string }> = [
   { key: "reading", label: "읽는 중" },
 ];
 
-type Initial = { state: string; year: string; q: string };
-type View = "grid" | "list";
+type View = ShelfView;
+type Initial = { state: string; year: string; q: string; view: View };
 const UNKNOWN = "unknown";
 const VIEW_KEY = "bookscout:shelf-view";
+function rememberView(view: View) {
+  document.cookie = `${SHELF_VIEW_COOKIE}=${view}; path=/; max-age=31536000; samesite=lax`;
+}
 
 // Shown under each book: purchase date and copy type only. Read state is a
 // filter, not a per-book label; the store is not shown or filtered (user decision).
@@ -51,20 +55,25 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState<View>("grid");
-
-  // The chosen view is remembered per browser; restore it before paint.
+  // The server already renders the view from the cookie; a choice saved only
+  // in localStorage (before the cookie existed) is adopted once here.
+  const [view, setView] = useState<View>(initial.view);
   useLayoutEffect(() => {
     try {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (window.localStorage.getItem(VIEW_KEY) === "list") setView("list");
+      const stored = window.localStorage.getItem(VIEW_KEY);
+      if (stored === "list" || stored === "grid") {
+        rememberView(stored);
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        if (stored !== initial.view) setView(stored);
+      }
     } catch {
-      // storage blocked — keep the default
+      // storage blocked — keep the server's view
     }
-  }, []);
+  }, [initial.view]);
 
   function changeView(next: View) {
     setView(next);
+    rememberView(next);
     try {
       window.localStorage.setItem(VIEW_KEY, next);
     } catch {

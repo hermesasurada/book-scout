@@ -3,6 +3,9 @@ import { getDb } from "../../../db";
 import { books, checks, purchases, watchlist } from "../../../db/schema";
 import { productDetails } from "../../../lib/catalog";
 import { aladinItemIdFromLink, aladinProductLink, lookupAladinProduct } from "../../../lib/providers";
+import { checkBook } from "../../../lib/watchCheck";
+
+const ADD_CHECK_TIMEOUT_MS = 15_000;
 
 const toInt = (value: unknown): number | null => {
   const n = typeof value === "number" ? value : Number(value);
@@ -129,6 +132,12 @@ export async function POST(request: Request) {
     if (owned) return Response.json({ error: "이미 보유한 책입니다." }, { status: 409 });
     const [watched] = await db.insert(watchlist).values({ bookId: book.id }).onConflictDoNothing().returning();
     if (!watched) return Response.json({ error: "이미 관심도서에 있습니다." }, { status: 409 });
+    // Check right away so the book doesn't sit unknown until the next daily run.
+    // The book is already saved: a slow or failed check is left to that run.
+    await Promise.race([
+      checkBook(db, book, false).catch(() => null),
+      new Promise((resolve) => setTimeout(resolve, ADD_CHECK_TIMEOUT_MS)),
+    ]);
     return Response.json({ book }, { status: 201 });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "도서를 저장하지 못했습니다." }, { status: 500 });

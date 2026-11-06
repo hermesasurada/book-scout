@@ -6,7 +6,7 @@ import { relativeTime } from "../../lib/books";
 import { Icon } from "../components/Icon";
 import { toast } from "../components/Toaster";
 
-type Stats = { purchases: number; watchlist: number; lastMailImport: string | null };
+type Stats = { purchases: number; watchlist: number; lastMailImport: string | null; lastDailyCheck: string | null; dailyCheckStale: boolean };
 type OrdersResult = {
   books: number;
   skippedGoods: string[];
@@ -65,6 +65,18 @@ export function Imports({ gmailReady, stats }: { gmailReady: boolean; stats: Sta
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <h1 className="text-[22px] font-bold tracking-tight">가져오기 · 설정</h1>
+
+      <section className="card p-5">
+        <h2 className="text-[15px] font-semibold">일일 점검</h2>
+        <p className="mt-1 text-[13px] text-muted">매일 08:00에 DB 백업, 구매 메일 확인, 관심도서 재고·대출 점검을 합니다.</p>
+        <p className="mt-2 text-[12.5px] text-faint">마지막 전체 점검 {stats.lastDailyCheck ? relativeTime(stats.lastDailyCheck) : "없음"}</p>
+        {stats.dailyCheckStale && (
+          <div className="mt-3 rounded-lg bg-warn-soft p-3 text-[13px] text-ink-2">
+            <p className="font-semibold text-warn">일일 점검이 하루 넘게 돌지 않았습니다.</p>
+            <p className="mt-1">launchd에 <code>com.bookscout.daily-check</code>가 등록되어 있는지 확인하세요.</p>
+          </div>
+        )}
+      </section>
 
       <section className="card p-5">
         <h2 className="text-[15px] font-semibold">알라딘 구매내역 (Gmail)</h2>

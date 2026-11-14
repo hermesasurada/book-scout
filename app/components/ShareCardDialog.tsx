@@ -3,11 +3,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { statusLabels, type ReadingView } from "../../lib/readings";
-import { shareCredits, sharePeriod, shareTitle } from "../../lib/shareText";
+import { shareCredits, sharePeriod, sharePublication, shareTitle } from "../../lib/shareText";
 import { Icon } from "./Icon";
 import { toast } from "./Toaster";
 
-type ShareReading = Pick<ReadingView, "title" | "author" | "publisher" | "cover" | "startedAt" | "finishedAt" | "datesUnknown" | "round">;
+type ShareReading = Pick<ReadingView, "title" | "author" | "publisher" | "pubDate" | "isbn13" | "cover" | "startedAt" | "finishedAt" | "datesUnknown" | "round">;
 
 // X shows single images at 16:9; lay out at 1200×675 and render at 4/3 scale.
 const W = 1200;
@@ -108,10 +108,12 @@ async function renderCard(reading: ShareReading): Promise<Blob> {
   const title = shareTitle(reading.title);
   const credits = shareCredits(reading.author);
   const period = sharePeriod(reading);
+  const publication = sharePublication(reading.publisher, reading.pubDate);
+  const isbn = reading.isbn13 ? `ISBN ${reading.isbn13}` : "";
   const label = reading.round > 1 ? `${statusLabels.finished} · ${reading.round}회독` : statusLabels.finished;
 
   // Pretendard is a dynamic subset: load the glyphs this card uses before drawing.
-  const text = [title.main, title.sub, credits, reading.publisher, period.range, period.days, label].join("");
+  const text = [title.main, title.sub, credits, publication, isbn, period.range, period.days, label].join("");
   await Promise.all([400, 600, 700].map((weight) => document.fonts.load(`${weight} 40px ${FONT}`, text))).catch(() => undefined);
   const cover = await loadCover(reading.cover);
 
@@ -156,7 +158,8 @@ async function renderCard(reading: ShareReading): Promise<Blob> {
     titleLines.length * titleLead,
     subLines.length ? 10 + subLines.length * 40 : 0,
     creditLines.length ? 28 + creditLines.length * 44 : 0,
-    reading.publisher ? 6 + 36 : 0,
+    publication ? 6 + 36 : 0,
+    isbn ? 34 : 0,
     period.range ? 40 + 1 + 32 + 44 : 0,
   ];
   let y = (H - blocks.reduce((sum, value) => sum + value, 0)) / 2;
@@ -191,12 +194,18 @@ async function renderCard(reading: ShareReading): Promise<Blob> {
       y += 44;
     }
   }
-  if (reading.publisher) {
+  if (publication) {
     y += 6;
     ctx.fillStyle = color("muted");
     ctx.font = `400 26px ${FONT}`;
-    ctx.fillText(wrap(ctx, reading.publisher, maxWidth, ctx.font, 1)[0], x, y);
+    ctx.fillText(wrap(ctx, publication, maxWidth, ctx.font, 1)[0], x, y);
     y += 36;
+  }
+  if (isbn) {
+    ctx.fillStyle = color("muted");
+    ctx.font = `400 22px ${FONT}`;
+    ctx.fillText(isbn, x, y);
+    y += 34;
   }
   if (period.range) {
     y += 40;

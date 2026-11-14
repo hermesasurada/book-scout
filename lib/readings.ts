@@ -20,6 +20,8 @@ export type ReadingView = {
   matchStatus: string;
   source: string;
   cover: string | null;
+  pubDate: string | null;
+  isbn13: string | null;
   pages: number | null;
   category: string | null;
   noteCount: number;

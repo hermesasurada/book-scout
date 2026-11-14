@@ -27,6 +27,8 @@ export async function loadReadings(db: Db, bookId?: number): Promise<ReadingView
       matchStatus: readings.matchStatus,
       source: readings.source,
       cover: books.cover,
+      pubDate: books.pubDate,
+      isbn13: books.isbn13,
       pages: books.pages,
       category: books.category,
       noteCount: sql<number>`(SELECT count(*) FROM reading_notes n WHERE n.reading_id = ${readings.id})`,

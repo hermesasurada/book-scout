@@ -18,6 +18,12 @@ export function shareTitle(title: string) {
   return { main: main.trim(), sub: rest.join(" - ").trim() };
 }
 
+/** "서삼독 · 2020.04.27 출간" — the date as precise as the catalog has it. */
+export function sharePublication(publisher: string, pubDate: string | null) {
+  const date = pubDate ? `${dotDate(pubDate)} 출간` : "";
+  return [publisher.trim(), date].filter(Boolean).join(" · ");
+}
+
 /** The reading period line and its length, e.g. "2026.10.24 – 2026.11.14", "22일". */
 export function sharePeriod(reading: Pick<ReadingView, "startedAt" | "finishedAt" | "datesUnknown">) {
   if (reading.datesUnknown || !reading.finishedAt) return { range: "", days: "" };

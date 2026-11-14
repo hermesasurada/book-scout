@@ -6,6 +6,7 @@ import { type ReadingView, readingPeriod, statusLabels } from "../../../lib/read
 import { dotDate } from "../../../lib/readings";
 import { Icon } from "../../components/Icon";
 import { ReadingEditor } from "../../components/ReadingEditor";
+import { ShareCardDialog } from "../../components/ShareCardDialog";
 import { toast } from "../../components/Toaster";
 import { UnknownToggle } from "../../components/UnknownToggle";
 
@@ -37,6 +38,7 @@ async function send(url: string, method: string, body?: unknown) {
 
 export function ReadingSection({ readings, notes }: { readings: ReadingView[]; notes: NoteView[] }) {
   const [editing, setEditing] = useState<ReadingView | null>(null);
+  const [sharing, setSharing] = useState<ReadingView | null>(null);
   if (!readings.length) return null;
   return (
     <section className="mt-8">
@@ -55,6 +57,11 @@ export function ReadingSection({ readings, notes }: { readings: ReadingView[]; n
                 <p className="tabular mt-0.5 text-[12.5px] text-muted">{readingPeriod(reading)}</p>
               </div>
               <div className="flex items-center gap-2">
+                {reading.status === "finished" && (
+                  <button className="icon-btn" onClick={() => setSharing(reading)} aria-label="완독 이미지 만들기" title="완독 이미지 만들기">
+                    <Icon name="share" />
+                  </button>
+                )}
                 <button className="icon-btn" onClick={() => setEditing(reading)} aria-label="기록 편집" title="기록 편집">
                   <Icon name="pencil" />
                 </button>
@@ -67,6 +74,7 @@ export function ReadingSection({ readings, notes }: { readings: ReadingView[]; n
         ))}
       </div>
       {editing && <ReadingEditor reading={editing} onClose={() => setEditing(null)} />}
+      {sharing && <ShareCardDialog reading={sharing} onClose={() => setSharing(null)} />}
     </section>
   );
 }

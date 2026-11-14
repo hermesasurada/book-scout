@@ -10,6 +10,7 @@ import { Icon } from "../components/Icon";
 import { LinkEditionDialog } from "../components/LinkEditionDialog";
 import { leaveList, rememberListUrl } from "../components/listNav";
 import { ReadingEditor } from "../components/ReadingEditor";
+import { ShareCardDialog } from "../components/ShareCardDialog";
 import { toast } from "../components/Toaster";
 
 type Tab = "all" | "reading" | "finished" | "stopped";
@@ -32,6 +33,7 @@ export function ReadingLog({ readings, initial, today }: { readings: ReadingView
   const [month, setMonth] = useState(/^\d{4}-\d{2}$/.test(initial.month) ? initial.month : "");
   const [editing, setEditing] = useState<ReadingView | null>(null);
   const [linking, setLinking] = useState<ReadingView | null>(null);
+  const [sharing, setSharing] = useState<ReadingView | null>(null);
 
   // Keep the position in the URL so a book page can send the reader back.
   useEffect(() => {
@@ -150,7 +152,7 @@ export function ReadingLog({ readings, initial, today }: { readings: ReadingView
               </h2>
               <ul className="card divide-y divide-line overflow-hidden">
                 {items.map((reading) => (
-                  <ReadingRow key={reading.id} reading={reading} onEdit={() => setEditing(reading)} onLink={() => setLinking(reading)} />
+                  <ReadingRow key={reading.id} reading={reading} onEdit={() => setEditing(reading)} onLink={() => setLinking(reading)} onShare={() => setSharing(reading)} />
                 ))}
               </ul>
             </section>
@@ -165,6 +167,7 @@ export function ReadingLog({ readings, initial, today }: { readings: ReadingView
       )}
 
       {editing && <ReadingEditor reading={editing} onClose={() => setEditing(null)} />}
+      {sharing && <ShareCardDialog reading={sharing} onClose={() => setSharing(null)} />}
       {linking && <LinkEditionDialog readingId={linking.id} title={linking.title} author={linking.author} onClose={() => setLinking(null)} />}
     </div>
   );
@@ -197,7 +200,7 @@ function Title({ reading, onLink, className }: { reading: ReadingView; onLink: (
   );
 }
 
-function ReadingRow({ reading, onEdit, onLink }: { reading: ReadingView; onEdit: () => void; onLink: () => void }) {
+function ReadingRow({ reading, onEdit, onLink, onShare }: { reading: ReadingView; onEdit: () => void; onLink: () => void; onShare: () => void }) {
   return (
     <li className="group flex gap-3.5 px-4 py-3 transition-colors hover:bg-sunken/40">
       <Cover reading={reading} className="h-[58px] w-10" />
@@ -212,10 +215,15 @@ function ReadingRow({ reading, onEdit, onLink }: { reading: ReadingView; onEdit:
         </div>
         {reading.review && <p className="mt-1 line-clamp-2 text-[12.5px] text-ink-2">“{reading.review}”</p>}
       </div>
-      <div className="flex shrink-0 flex-col items-end justify-between gap-1">
-        <button className="icon-btn md:opacity-0 md:transition-opacity md:group-focus-within:opacity-100 md:group-hover:opacity-100" onClick={onEdit} aria-label={`${reading.title} 기록 편집`} title="기록 편집">
+      <div className="flex shrink-0 flex-col items-end gap-1 md:opacity-0 md:transition-opacity md:group-focus-within:opacity-100 md:group-hover:opacity-100">
+        <button className="icon-btn" onClick={onEdit} aria-label={`${reading.title} 기록 편집`} title="기록 편집">
           <Icon name="pencil" />
         </button>
+        {reading.status === "finished" && (
+          <button className="icon-btn" onClick={onShare} aria-label={`${reading.title} 완독 이미지 만들기`} title="완독 이미지 만들기">
+            <Icon name="share" />
+          </button>
+        )}
       </div>
     </li>
   );

@@ -46,6 +46,13 @@
   --warn-soft: #fcf1df;
   --bad: #b42318;
   --bad-soft: #fdecea;
+  /* 완독 share image: always light, so not redefined for dark mode. */
+  --share-bg: #f6f6f4;
+  --share-line: #dcdcd6;
+  --share-ink: #18181b;
+  --share-ink-2: #3f3f46;
+  --share-muted: #71717a;
+  --share-accent: #2f6f4e;
 }
 
 @media (prefers-color-scheme: dark) {

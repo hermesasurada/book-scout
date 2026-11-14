@@ -28,6 +28,8 @@ const paths = {
   chart: <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" />,
   cart: <><circle cx="9" cy="20" r="1.4" /><circle cx="18" cy="20" r="1.4" /><path d="M2 3h3l2.6 12.4a1.5 1.5 0 0 0 1.5 1.1h8.8a1.5 1.5 0 0 0 1.5-1.1L21 7H6" /></>,
   quote: <path d="M7 7h4v4c0 3-1.5 5-4 6M15 7h4v4c0 3-1.5 5-4 6" />,
+  download: <><path d="M12 4v11M7 10l5 5 5-5" /><path d="M5 19h14" /></>,
+  share: <><path d="M12 15V4M7 8.5 12 4l5 4.5" /><path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7" /></>,
 } as const;
 
 export type IconName = keyof typeof paths;

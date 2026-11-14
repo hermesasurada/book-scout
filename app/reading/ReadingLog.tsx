@@ -134,7 +134,7 @@ export function ReadingLog({ readings, initial, today }: { readings: ReadingView
           {current.length > 0 && (tab === "all" || tab === "reading") && (
             <section className="mb-6">
               <h2 className="mb-2.5 text-[13px] font-semibold text-muted">읽는 중</h2>
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {current.map((reading) => (
                   <ReadingNowCard key={reading.id} reading={reading} today={today} onEdit={() => setEditing(reading)} onLink={() => setLinking(reading)} />
                 ))}
@@ -245,7 +245,7 @@ function ReadingNowCard({ reading, today, onEdit, onLink }: { reading: ReadingVi
   }
 
   return (
-    <div className="card flex gap-4 p-4">
+    <div className="card flex min-w-0 gap-4 p-4">
       <Cover reading={reading} className="h-[84px] w-14" />
       <div className="flex min-w-0 flex-1 flex-col">
         <Title reading={reading} onLink={onLink} className="block truncate text-[14.5px] font-semibold" />

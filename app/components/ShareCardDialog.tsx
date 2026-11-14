@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { statusLabels, type ReadingView } from "../../lib/readings";
 import { shareCredits, sharePeriod, shareTitle } from "../../lib/shareText";
 import { Icon } from "./Icon";
+import { toast } from "./Toaster";
 
 type ShareReading = Pick<ReadingView, "title" | "author" | "publisher" | "cover" | "startedAt" | "finishedAt" | "datesUnknown" | "round">;
 
@@ -18,16 +19,20 @@ const FONT = '"Pretendard Variable", Pretendard, "Apple SD Gothic Neo", sans-ser
 export function ShareCardDialog({ reading, onClose }: { reading: ShareReading; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [url, setUrl] = useState<string | null>(null);
+  const [blob, setBlob] = useState<Blob | null>(null);
   const [failed, setFailed] = useState(false);
+  // The Clipboard API only exists on https or localhost, not the plain-http Tailscale address.
+  const [canCopy] = useState(() => typeof window !== "undefined" && window.isSecureContext && "ClipboardItem" in window);
 
   useEffect(() => {
     dialog.current?.showModal();
     let objectUrl: string | null = null;
     let cancelled = false;
     renderCard(reading)
-      .then((blob) => {
+      .then((image) => {
         if (cancelled) return;
-        objectUrl = URL.createObjectURL(blob);
+        objectUrl = URL.createObjectURL(image);
+        setBlob(image);
         setUrl(objectUrl);
       })
       .catch(() => !cancelled && setFailed(true));
@@ -36,6 +41,16 @@ export function ShareCardDialog({ reading, onClose }: { reading: ShareReading; o
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [reading]);
+
+  async function copy() {
+    if (!blob) return;
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+      toast("이미지를 클립보드에 복사했습니다.");
+    } catch {
+      toast("클립보드에 복사하지 못했습니다.", "error");
+    }
+  }
 
   const fileName = `${shareTitle(reading.title).main.replace(/[\\/:*?"<>|]/g, "").slice(0, 60)}-완독.png`;
 
@@ -63,13 +78,25 @@ export function ShareCardDialog({ reading, onClose }: { reading: ShareReading; o
             <div className="grid size-full place-items-center text-[13px] text-muted">{failed ? "이미지를 만들지 못했습니다." : "이미지를 만드는 중…"}</div>
           )}
         </div>
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <p className="text-[12px] text-muted">1600×900 PNG · X에 바로 올릴 수 있는 16:9 크기입니다.</p>
-          <a className={`btn btn-primary shrink-0 ${url ? "" : "pointer-events-none opacity-50"}`} href={url ?? undefined} download={fileName} aria-disabled={!url}>
-            <Icon name="download" />
-            이미지 저장
-          </a>
+        <div className="mt-4 flex items-center justify-end gap-3 sm:justify-between">
+          <p className="hidden text-[12px] text-muted sm:block">1600×900 PNG · X에 바로 올릴 수 있는 16:9 크기입니다.</p>
+          <div className="flex shrink-0 gap-2">
+            <button
+              className="btn"
+              onClick={() => void copy()}
+              disabled={!blob || !canCopy}
+              title={canCopy ? "클립보드에 복사" : "https 주소에서만 복사할 수 있습니다"}
+            >
+              <Icon name="copy" />
+              복사
+            </button>
+            <a className={`btn btn-primary ${url ? "" : "pointer-events-none opacity-50"}`} href={url ?? undefined} download={fileName} aria-disabled={!url}>
+              <Icon name="download" />
+              저장
+            </a>
+          </div>
         </div>
+        {!canCopy && <p className="mt-2 text-right text-[11.5px] text-faint">이 주소(http)에서는 브라우저가 클립보드 복사를 막아 저장만 할 수 있습니다.</p>}
       </div>
     </dialog>
   );
@@ -96,8 +123,8 @@ async function renderCard(reading: ShareReading): Promise<Blob> {
   ctx.fillStyle = color("bg");
   ctx.fillRect(0, 0, W, H);
 
-  // Cover on the left, at most 300×450, centred vertically.
-  const box = { x: 110, w: 300, h: 450 };
+  // Cover on the left, at most 380×560, centred vertically.
+  const box = { x: 64, w: 380, h: 560 };
   let cw = box.w;
   let ch = box.h;
   if (cover) {
@@ -117,28 +144,28 @@ async function renderCard(reading: ShareReading): Promise<Blob> {
   if (cover) ctx.drawImage(cover, cx, cy, cw, ch);
 
   // Text column on the right, centred as a block.
-  const x = 490;
-  const maxWidth = W - x - 100;
-  const titleSize = fitSize(ctx, title.main, maxWidth, [56, 48, 42], 3);
+  const x = box.x + box.w + 64;
+  const maxWidth = W - x - 64;
+  const titleSize = fitSize(ctx, title.main, maxWidth, [68, 58, 50], 3);
   const titleLines = wrap(ctx, title.main, maxWidth, `700 ${titleSize}px ${FONT}`, 3);
-  const subLines = title.sub ? wrap(ctx, title.sub, maxWidth, `400 24px ${FONT}`, 2) : [];
-  const creditLines = credits ? wrap(ctx, credits, maxWidth, `400 26px ${FONT}`, 2) : [];
-  const titleLead = titleSize * 1.28;
+  const subLines = title.sub ? wrap(ctx, title.sub, maxWidth, `400 28px ${FONT}`, 2) : [];
+  const creditLines = credits ? wrap(ctx, credits, maxWidth, `400 32px ${FONT}`, 2) : [];
+  const titleLead = titleSize * 1.25;
   const blocks = [
-    34, // label
+    40, // label
     titleLines.length * titleLead,
-    subLines.length ? 10 + subLines.length * 34 : 0,
-    creditLines.length ? 26 + creditLines.length * 38 : 0,
-    reading.publisher ? 6 + 32 : 0,
-    period.range ? 44 + 1 + 30 + 40 : 0,
+    subLines.length ? 10 + subLines.length * 40 : 0,
+    creditLines.length ? 28 + creditLines.length * 44 : 0,
+    reading.publisher ? 6 + 36 : 0,
+    period.range ? 40 + 1 + 32 + 44 : 0,
   ];
   let y = (H - blocks.reduce((sum, value) => sum + value, 0)) / 2;
   ctx.textBaseline = "top";
 
   ctx.fillStyle = color("accent");
-  ctx.font = `700 22px ${FONT}`;
+  ctx.font = `700 26px ${FONT}`;
   ctx.fillText(label, x, y);
-  y += 34;
+  y += 40;
 
   ctx.fillStyle = color("ink");
   ctx.font = `700 ${titleSize}px ${FONT}`;
@@ -149,40 +176,40 @@ async function renderCard(reading: ShareReading): Promise<Blob> {
   if (subLines.length) {
     y += 10;
     ctx.fillStyle = color("muted");
-    ctx.font = `400 24px ${FONT}`;
+    ctx.font = `400 28px ${FONT}`;
     for (const line of subLines) {
       ctx.fillText(line, x, y);
-      y += 34;
+      y += 40;
     }
   }
   if (creditLines.length) {
-    y += 26;
+    y += 28;
     ctx.fillStyle = color("ink-2");
-    ctx.font = `400 26px ${FONT}`;
+    ctx.font = `400 32px ${FONT}`;
     for (const line of creditLines) {
       ctx.fillText(line, x, y);
-      y += 38;
+      y += 44;
     }
   }
   if (reading.publisher) {
     y += 6;
     ctx.fillStyle = color("muted");
-    ctx.font = `400 22px ${FONT}`;
+    ctx.font = `400 26px ${FONT}`;
     ctx.fillText(wrap(ctx, reading.publisher, maxWidth, ctx.font, 1)[0], x, y);
-    y += 32;
+    y += 36;
   }
   if (period.range) {
-    y += 44;
+    y += 40;
     ctx.fillStyle = color("line");
-    ctx.fillRect(x, y, Math.min(maxWidth, 420), 1);
-    y += 1 + 30;
+    ctx.fillRect(x, y, maxWidth, 1);
+    y += 1 + 32;
     ctx.fillStyle = color("ink");
-    ctx.font = `600 28px ${FONT}`;
+    ctx.font = `600 34px ${FONT}`;
     ctx.fillText(period.range, x, y);
     if (period.days) {
-      const offset = ctx.measureText(period.range).width + 16;
+      const offset = ctx.measureText(period.range).width + 18;
       ctx.fillStyle = color("muted");
-      ctx.font = `400 26px ${FONT}`;
+      ctx.font = `400 30px ${FONT}`;
       ctx.fillText(period.days, x + offset, y + 2);
     }
   }

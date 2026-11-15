@@ -19,6 +19,11 @@ export default async function ShelfPage({ searchParams }: { searchParams: Search
       author: books.author,
       publisher: books.publisher,
       cover: books.cover,
+      pubDate: books.pubDate,
+      salesPoint: books.salesPoint,
+      reviewRank: books.reviewRank,
+      commentCount: books.commentCount,
+      reviewCount: books.reviewCount,
       purchasedAt: sql<string>`max(${purchases.purchasedAt})`,
       purchaseCount: sql<number>`count(*)`,
       condition: sql<string>`(SELECT condition FROM purchases p2 WHERE p2.book_id = ${books.id} ORDER BY p2.purchased_at DESC, p2.id DESC LIMIT 1)`,
@@ -42,5 +47,5 @@ export default async function ShelfPage({ searchParams }: { searchParams: Search
     .orderBy(desc(sql`max(${purchases.purchasedAt})`), desc(books.id));
   const view = shelfViewFrom((await cookies()).get(SHELF_VIEW_COOKIE)?.value);
   const one = (key: string) => (typeof params[key] === "string" ? (params[key] as string) : "");
-  return <Shelf books={rows.map((row) => ({ ...row, purchaseCount: Number(row.purchaseCount) })) as ShelfBook[]} initial={{ state: one("state"), year: one("year"), q: one("q"), view }} />;
+  return <Shelf books={rows.map((row) => ({ ...row, purchaseCount: Number(row.purchaseCount) })) as ShelfBook[]} initial={{ state: one("state"), year: one("year"), q: one("q"), sort: one("sort"), dir: one("dir"), view }} />;
 }

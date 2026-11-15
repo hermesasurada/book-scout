@@ -18,6 +18,7 @@ import {
   thumb,
   usedDiscount,
 } from "../../lib/books";
+import { byNumber, byText, reviewTotal, type SortDirection } from "../../lib/listSort";
 import { Icon } from "../components/Icon";
 import { onBooksChanged, toast } from "../components/Toaster";
 import { leaveList, rememberListUrl, takeSavedScroll } from "../components/listNav";
@@ -32,7 +33,6 @@ const VIEW_KEY = "bookscout:watch-view";
 
 type Filter = "all" | "aladin" | "library";
 type SortKey = "added" | "published" | "sales" | "rating" | "reviews" | "price" | "stock" | "discount" | "due";
-type SortDirection = "asc" | "desc";
 type View = "list" | "grid";
 
 const sortLabels: Record<SortKey, string> = {
@@ -199,32 +199,15 @@ export function Watchlist() {
     // The API returns newest additions first, including the ID tie-breaker.
     if (sort === "added" || (sort === "stock" && filter !== "aladin")) return asc ? [...matched].reverse() : matched;
 
-    // In both directions, entries missing the sort value sink to the bottom.
-    const byNum = (value: (book: Book) => number | null) => (a: Book, b: Book) => {
-      const va = value(a);
-      const vb = value(b);
-      if (va == null && vb == null) return 0;
-      if (va == null) return 1;
-      if (vb == null) return -1;
-      return asc ? va - vb : vb - va;
-    };
-    const byStr = (value: (book: Book) => string) => (a: Book, b: Book) => {
-      const va = value(a);
-      const vb = value(b);
-      if (!va && !vb) return 0;
-      if (!va) return 1;
-      if (!vb) return -1;
-      return asc ? va.localeCompare(vb) : vb.localeCompare(va);
-    };
     const comparators: Record<Exclude<SortKey, "added">, (a: Book, b: Book) => number> = {
-      published: byStr((book) => book.pubDate || ""),
-      sales: byNum((book) => book.salesPoint ?? null),
-      rating: byNum((book) => book.reviewRank ?? null),
-      reviews: byNum((book) => (book.commentCount == null && book.reviewCount == null ? null : (book.commentCount ?? 0) + (book.reviewCount ?? 0))),
-      price: byNum((book) => (book.aladinStatus === "in_stock" && book.aladinPrice && book.aladinPrice > 0 ? book.aladinPrice : null)),
-      stock: byNum((book) => book.aladinCount ?? null),
-      discount: byNum((book) => usedDiscount(book)),
-      due: byStr((book) => book.libraryDueDate || ""),
+      published: byText((book) => book.pubDate, dir),
+      sales: byNumber((book) => book.salesPoint, dir),
+      rating: byNumber((book) => book.reviewRank, dir),
+      reviews: byNumber(reviewTotal, dir),
+      price: byNumber((book) => (book.aladinStatus === "in_stock" && book.aladinPrice && book.aladinPrice > 0 ? book.aladinPrice : null), dir),
+      stock: byNumber((book) => book.aladinCount, dir),
+      discount: byNumber(usedDiscount, dir),
+      due: byText((book) => book.libraryDueDate, dir),
     };
     return [...matched].sort(comparators[sort]);
   }, [books, state]);

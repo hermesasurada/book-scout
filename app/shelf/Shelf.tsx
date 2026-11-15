@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { thumb } from "../../lib/books";
+import { byNumber, byText, reviewTotal, type SortDirection } from "../../lib/listSort";
 import { dotDate } from "../../lib/readings";
 import { SHELF_VIEW_COOKIE, type ShelfView } from "../../lib/shelfView";
 import { Icon } from "../components/Icon";
@@ -17,6 +18,11 @@ export type ShelfBook = {
   author: string;
   publisher: string;
   cover: string;
+  pubDate: string | null;
+  salesPoint: number | null;
+  reviewRank: number | null;
+  commentCount: number | null;
+  reviewCount: number | null;
   /** null = 구매일 모름 */
   purchasedAt: string | null;
   purchaseCount: number;
@@ -31,8 +37,25 @@ const STATES: Array<{ key: State; label: string }> = [
   { key: "reading", label: "읽는 중" },
 ];
 
+// Same sort control as 관심도서; store and library keys don't apply to owned books.
+type SortKey = "purchased" | "published" | "sales" | "rating" | "reviews";
+const sortLabels: Record<SortKey, string> = {
+  purchased: "구매일",
+  published: "출간일",
+  sales: "판매지수",
+  rating: "평점",
+  reviews: "리뷰건수(합산)",
+};
+const comparators: Record<SortKey, (dir: SortDirection) => (a: ShelfBook, b: ShelfBook) => number> = {
+  purchased: (dir) => byText((book) => book.purchasedAt, dir),
+  published: (dir) => byText((book) => book.pubDate, dir),
+  sales: (dir) => byNumber((book) => book.salesPoint, dir),
+  rating: (dir) => byNumber((book) => book.reviewRank, dir),
+  reviews: (dir) => byNumber(reviewTotal, dir),
+};
+
 type View = ShelfView;
-type Initial = { state: string; year: string; q: string; view: View };
+type Initial = { state: string; year: string; q: string; sort: string; dir: string; view: View };
 const UNKNOWN = "unknown";
 const VIEW_KEY = "bookscout:shelf-view";
 function rememberView(view: View) {
@@ -83,16 +106,20 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
   const [state, setState] = useState<State>(STATES.some((item) => item.key === initial.state) ? (initial.state as State) : "all");
   const [year, setYear] = useState(initial.year);
   const [q, setQ] = useState(initial.q);
+  const [sort, setSort] = useState<SortKey>(initial.sort in sortLabels ? (initial.sort as SortKey) : "purchased");
+  const [dir, setDir] = useState<SortDirection>(initial.dir === "asc" ? "asc" : "desc");
 
   useEffect(() => {
     const params = new URLSearchParams();
     if (state !== "all") params.set("state", state);
     if (year) params.set("year", year);
     if (q) params.set("q", q);
+    if (sort !== "purchased") params.set("sort", sort);
+    if (dir !== "desc") params.set("dir", dir);
     const next = `${window.location.pathname}${params.size ? `?${params}` : ""}`;
     if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, "", next);
     rememberListUrl(next);
-  }, [state, year, q]);
+  }, [state, year, q, sort, dir]);
 
   const counts = useMemo(() => {
     const result: Record<State, number> = { all: books.length, unread: 0, reading: 0 };
@@ -105,13 +132,15 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
   const years = useMemo(() => [...new Set(books.flatMap((book) => (book.purchasedAt ? [book.purchasedAt.slice(0, 4)] : [])))].sort().reverse(), [books]);
   const someUnknown = books.some((book) => !book.purchasedAt);
 
-  const filtered = books.filter((book) => {
-    if (state === "unread" && !(book.readState === "unread" || book.readState === "stopped")) return false;
-    if (state === "reading" && book.readState !== "reading") return false;
-    if (year === UNKNOWN ? book.purchasedAt : year && !book.purchasedAt?.startsWith(year)) return false;
-    if (q.trim() && !`${book.title} ${book.author} ${book.publisher}`.toLowerCase().includes(q.trim().toLowerCase())) return false;
-    return true;
-  });
+  const filtered = books
+    .filter((book) => {
+      if (state === "unread" && !(book.readState === "unread" || book.readState === "stopped")) return false;
+      if (state === "reading" && book.readState !== "reading") return false;
+      if (year === UNKNOWN ? book.purchasedAt : year && !book.purchasedAt?.startsWith(year)) return false;
+      if (q.trim() && !`${book.title} ${book.author} ${book.publisher}`.toLowerCase().includes(q.trim().toLowerCase())) return false;
+      return true;
+    })
+    .sort(comparators[sort](dir));
 
   async function remove(ids: number[]) {
     if (!ids.length) return;
@@ -202,8 +231,8 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
                 ))}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="relative min-w-0 flex-1 sm:max-w-64">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-40 flex-1 sm:max-w-64">
                 <Icon name="search" className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-faint" />
                 <input className="field w-full pl-8" value={q} onChange={(event) => setQ(event.target.value)} placeholder="서재에서 검색" aria-label="서재에서 검색" />
               </div>
@@ -214,6 +243,21 @@ export function Shelf({ books: loaded, initial }: { books: ShelfBook[]; initial:
                 ))}
                 {someUnknown && <option value={UNKNOWN}>구매일 모름</option>}
               </select>
+              <div className="flex items-center">
+                <select className="field rounded-r-none" value={sort} onChange={(event) => setSort(event.target.value as SortKey)} aria-label="정렬 기준">
+                  {(Object.keys(sortLabels) as SortKey[]).map((key) => (
+                    <option key={key} value={key}>{sortLabels[key]}</option>
+                  ))}
+                </select>
+                <button
+                  className="field -ml-px grid w-8 place-items-center rounded-l-none px-0 hover:bg-sunken"
+                  onClick={() => setDir(dir === "asc" ? "desc" : "asc")}
+                  aria-label={dir === "asc" ? "오름차순 (눌러서 내림차순)" : "내림차순 (눌러서 오름차순)"}
+                  title={dir === "asc" ? "오름차순" : "내림차순"}
+                >
+                  <Icon name={dir === "asc" ? "arrowUp" : "arrowDown"} className="size-3.5" />
+                </button>
+              </div>
               <div className="seg ml-auto shrink-0" role="group" aria-label="보기 방식">
                 <button aria-pressed={view === "list"} onClick={() => changeView("list")} aria-label="목록 보기" title="목록 보기">
                   <Icon name="list" className="size-4" />
